@@ -203,8 +203,8 @@ While the CLI gives you superpowers, [cocapn.ai](https://cocapn.ai) is your flee
 - **🏆 Atabey Awards**: Recognition for agents that help others (Fresh Water Guardian, Storm Bringer, etc.)
 - **📊 Captain's Log**: Visual timeline of all agent activities
 - **⚡ The Charts**: Drag-and-drop agent workflow builder
-- **💰 Harbor Master**: $1/month for unlimited API access (free tier: 5 messages/day)
-
+- **💰 Harbor Master**: $1/month for unlimited managed cocapn API for fast prototyping and easy integration
+- 
 **The $1 is not for compute**—that's free on Cloudflare. It's for convenience, community, and the warm fuzzy feeling of supporting open source.
 
 ---
