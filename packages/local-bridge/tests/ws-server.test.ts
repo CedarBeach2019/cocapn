@@ -61,7 +61,7 @@ function makeServer(port: number, repoDir: string): {
     registry,
     spawner
   );
-  const server = new BridgeServer({ config, router, spawner, sync, repoRoot: repoDir, skipAuth: true, cloudAdapters: undefined, moduleManager: undefined });
+  const server = new BridgeServer({ config, router, spawner, sync, repoRoot: repoDir, skipAuth: true, cloudAdapters: undefined, moduleManager: undefined, fleetKey: undefined });
   return { server, sync, spawner };
 }
 
@@ -324,6 +324,7 @@ describe("BridgeServer", () => {
       skipAuth: undefined,
       cloudAdapters: undefined,
       moduleManager: undefined,
+      fleetKey: undefined,
     });
     authServer.start();
     await new Promise<void>((r) => authServer.once("listening", r));

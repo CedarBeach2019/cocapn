@@ -14,6 +14,8 @@ import { existsSync } from "fs";
 import { resolve } from "path";
 import { Bridge } from "./bridge.js";
 import { buildModuleCommand } from "./cli/module.js";
+import { buildSecretCommand } from "./cli/secret.js";
+import { buildTokenCommand }  from "./cli/token.js";
 
 const program = new Command();
 
@@ -95,6 +97,8 @@ program
   });
 
 program.addCommand(buildModuleCommand());
+program.addCommand(buildSecretCommand());
+program.addCommand(buildTokenCommand());
 
 program.parse();
 

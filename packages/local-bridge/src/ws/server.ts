@@ -27,6 +27,8 @@ import type { GitSync } from "../git/sync.js";
 import type { BridgeConfig } from "../config/types.js";
 import type { CloudAdapterRegistry } from "../CloudAdapter.js";
 import { ModuleManager } from "../modules/manager.js";
+import { AuditLogger } from "../security/audit.js";
+import { verifyJwt } from "../security/jwt.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +47,8 @@ export interface BridgeServerOptions {
   cloudAdapters: CloudAdapterRegistry | undefined;
   /** Module manager — lazily created if not provided */
   moduleManager: ModuleManager | undefined;
+  /** Fleet symmetric key for JWT auth (alternative to GitHub PAT) */
+  fleetKey: string | undefined;
 }
 
 export type BridgeServerEventMap = {
@@ -85,10 +89,12 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
   private wss: WebSocketServer | null = null;
   private options: BridgeServerOptions;
   private sessions = new Map<string, SessionState>();
+  private audit: AuditLogger;
 
   constructor(options: BridgeServerOptions) {
     super();
     this.options = options;
+    this.audit   = new AuditLogger(options.repoRoot);
   }
 
   // ---------------------------------------------------------------------------
@@ -150,21 +156,47 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
     if (!this.options.skipAuth) {
       if (!rawToken) {
-        ws.close(4001, "Missing token — provide ?token=<github-pat>");
+        this.audit.log({ action: "auth.reject", agent: undefined, user: undefined,
+          command: undefined, files: undefined, result: "denied",
+          detail: "Missing token", durationMs: undefined });
+        ws.close(4001, "Missing token — provide ?token=<github-pat> or ?token=<fleet-jwt>");
         return;
       }
 
-      githubLogin = await this.validateGithubPat(rawToken);
-      if (!githubLogin) {
-        ws.close(4001, "Invalid or expired GitHub PAT");
-        return;
+      // ── Fleet JWT auth (starts with "eyJ") ──────────────────────────────
+      if (rawToken.startsWith("eyJ") && this.options.fleetKey) {
+        try {
+          const payload = verifyJwt(rawToken, this.options.fleetKey);
+          githubLogin = payload.sub;
+          console.info(`[bridge] Fleet JWT authenticated: ${githubLogin} → ${clientId}`);
+          this.audit.log({ action: "auth.connect", agent: undefined, user: githubLogin,
+            command: undefined, files: undefined, result: "ok",
+            detail: "fleet-jwt", durationMs: undefined });
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          this.audit.log({ action: "auth.reject", agent: undefined, user: undefined,
+            command: undefined, files: undefined, result: "denied", detail, durationMs: undefined });
+          ws.close(4001, "Invalid fleet JWT");
+          return;
+        }
+      } else {
+        // ── GitHub PAT auth ────────────────────────────────────────────────
+        githubLogin = await this.validateGithubPat(rawToken);
+        if (!githubLogin) {
+          this.audit.log({ action: "auth.reject", agent: undefined, user: undefined,
+            command: undefined, files: undefined, result: "denied",
+            detail: "Invalid GitHub PAT", durationMs: undefined });
+          ws.close(4001, "Invalid or expired GitHub PAT");
+          return;
+        }
+        githubToken = rawToken;
+        console.info(`[bridge] Authenticated: ${githubLogin} → ${clientId}`);
+        this.audit.log({ action: "auth.connect", agent: undefined, user: githubLogin,
+          command: undefined, files: undefined, result: "ok",
+          detail: "github-pat", durationMs: undefined });
+        // Forward the token to cloud adapters so they can call GitHub API
+        this.options.cloudAdapters?.setGitHubToken(rawToken);
       }
-
-      githubToken = rawToken;
-      console.info(`[bridge] Authenticated: ${githubLogin} → ${clientId}`);
-
-      // Forward the token to cloud adapters so they can call GitHub API
-      this.options.cloudAdapters?.setGitHubToken(rawToken);
     }
 
     this.sessions.set(clientId, {
@@ -416,9 +448,15 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     // Ensure cwd stays within repo root
     const cwd = resolve(this.options.repoRoot, rawCwd);
     if (!cwd.startsWith(this.options.repoRoot)) {
+      this.audit.log({ action: "bash.exec", agent: undefined, user: undefined,
+        command, files: undefined, result: "denied",
+        detail: "cwd outside repo root", durationMs: undefined });
       this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, error: "cwd outside repo root" });
       return;
     }
+
+    const finish = this.audit.start({ action: "bash.exec", agent: undefined, user: undefined,
+      command, files: undefined });
 
     await new Promise<void>((resolveFn) => {
       const child = exec(command, { cwd });
@@ -432,11 +470,13 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       });
 
       child.on("close", (exitCode) => {
+        finish(exitCode === 0 ? "ok" : "error", `exit ${exitCode ?? "null"}`);
         this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, exitCode });
         resolveFn();
       });
 
       child.on("error", (err) => {
+        finish("error", err.message);
         this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, error: err.message });
         resolveFn();
       });
@@ -463,17 +503,22 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       return;
     }
 
+    const finish = this.audit.start({ action: "file.edit", agent: undefined, user: undefined,
+      command: undefined, files: [relPath] });
     try {
       writeFileSync(absPath, content, "utf8");
       const filename = relPath.split("/").pop() ?? relPath;
       await this.options.sync.commitFile(filename);
+      finish("ok");
       this.sendTyped(ws, { type: "FILE_EDIT_RESULT", id: msg.id, ok: true, path: relPath });
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      finish("error", message);
       this.sendTyped(ws, {
         type: "FILE_EDIT_RESULT",
         id: msg.id,
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: message,
       });
     }
   }

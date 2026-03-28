@@ -30,6 +30,7 @@ import {
   type CloudConfig,
 } from "./CloudAdapter.js";
 import { ModuleManager } from "./modules/manager.js";
+import { FleetKeyManager } from "./security/fleet.js";
 import type { BridgeConfig } from "./config/types.js";
 
 // ─── AdmiralClient (optional import — avoids hard dep on cloud-agents pkg) ────
@@ -76,6 +77,8 @@ export class Bridge {
   private admiral:       AdmiralClientLike | undefined;
   private instanceId:    string;
   private modules:       ModuleManager;
+  private fleetKeys:     FleetKeyManager;
+  private fleetKey:      string | undefined;
 
   constructor(options: BridgeOptions) {
     this.options    = options;
@@ -90,9 +93,10 @@ export class Bridge {
       };
     }
 
-    this.secrets = new SecretManager(options.privateRepoRoot);
-    this.sync    = new GitSync(options.privateRepoRoot, this.config);
-    this.modules = new ModuleManager(options.privateRepoRoot);
+    this.secrets   = new SecretManager(options.privateRepoRoot);
+    this.sync      = new GitSync(options.privateRepoRoot, this.config);
+    this.modules   = new ModuleManager(options.privateRepoRoot);
+    this.fleetKeys = new FleetKeyManager(options.privateRepoRoot);
 
     this.watcher = new RepoWatcher(
       [options.privateRepoRoot],
@@ -132,6 +136,7 @@ export class Bridge {
       skipAuth:      options.skipAuth,
       cloudAdapters: this.cloudAdapters,
       moduleManager: this.modules,
+      fleetKey:      this.fleetKey,
     });
   }
 
@@ -148,6 +153,17 @@ export class Bridge {
     console.info(`[bridge] Cloud:     ${this.cloudAdapters ? "enabled" : "local-only"}`);
 
     await this.secrets.loadIdentity();
+
+    // Load fleet key (used for JWT auth between fleet members)
+    this.fleetKey = await this.fleetKeys.load(
+      (ct) => this.secrets.decrypt(ct)
+    );
+    if (this.fleetKey) {
+      console.info("[bridge] Fleet key loaded — JWT auth enabled");
+      // Inject into running server options (server not yet started)
+      this.server["options"].fleetKey = this.fleetKey;
+    }
+
     await this.sync.pull();
     this.sync.startTimers();
     this.watcher.start();

@@ -12,6 +12,50 @@ import { EventEmitter } from "events";
 import { MCPClient, StdioTransport } from "@cocapn/protocols/mcp";
 import type { McpInitializeResult } from "@cocapn/protocols/mcp";
 
+// ─── Environment variable filter ─────────────────────────────────────────────
+//
+// Agents only receive:
+//   - Their own explicitly declared env vars (definition.env)
+//   - COCAPN_* variables (injected context)
+//   - A minimal set of system vars needed for the process to run
+//
+// This prevents agents from reading host secrets (API keys, AWS creds, etc.)
+// that happen to be in the parent process environment.
+
+const ALLOWED_ENV_PREFIXES = ["COCAPN_"];
+const ALLOWED_ENV_EXACT = new Set([
+  "PATH", "HOME", "USER", "LOGNAME", "SHELL",
+  "TMPDIR", "TEMP", "TMP",
+  "TERM", "COLORTERM",
+  "LANG", "LC_ALL", "LC_CTYPE",
+  "TZ",
+  "NODE_PATH", "NODE_ENV",
+  // Let agents find their own runtimes
+  "npm_config_cache",
+]);
+
+export function filterEnv(
+  parentEnv: NodeJS.ProcessEnv,
+  agentEnv:  Record<string, string>
+): Record<string, string> {
+  const filtered: Record<string, string> = {};
+
+  for (const [k, v] of Object.entries(parentEnv)) {
+    if (v === undefined) continue;
+    const allowed =
+      ALLOWED_ENV_EXACT.has(k) ||
+      ALLOWED_ENV_PREFIXES.some((prefix) => k.startsWith(prefix));
+    if (allowed) filtered[k] = v;
+  }
+
+  // Agent's own env overrides (always included)
+  for (const [k, v] of Object.entries(agentEnv)) {
+    filtered[k] = v;
+  }
+
+  return filtered;
+}
+
 export type OutputCallback = (chunk: string, stream: "stdout" | "stderr") => void;
 
 export interface AgentDefinition {
@@ -68,16 +112,12 @@ export class AgentSpawner extends EventEmitter<SpawnerEventMap> {
       throw new Error(`Agent already running: ${definition.id}`);
     }
 
-    const env: Record<string, string> = {
-      ...definition.env,
-    };
-    if (options.soul) {
-      env["COCAPN_SOUL"] = options.soul;
-    }
+    const agentEnv: Record<string, string> = { ...definition.env };
+    if (options.soul) agentEnv["COCAPN_SOUL"] = options.soul;
 
     const proc = spawn(definition.command, definition.args, {
-      env: { ...process.env, ...env },
-      stdio: ["pipe", "pipe", "pipe"], // pipe stderr so we can stream it
+      env:   filterEnv(process.env, agentEnv),
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     const stdinStream = proc.stdin;
