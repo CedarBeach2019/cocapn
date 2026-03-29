@@ -55,6 +55,13 @@ import { handleTreeSearch, handleTreeSearchStatus } from "../handlers/tree-searc
 import { handleGraphQuery, handleGraphStats } from "../handlers/graph.js";
 import { handleTokenStats, handleTokenEfficiency, handleTokenWaste } from "../handlers/metrics.js";
 import { handleBrowser } from "../handlers/browser.js";
+import {
+  handleStreamingDiffStart,
+  handleStreamingDiffChunk,
+  handleStreamingDiffStatus,
+  handleStreamingDiffFinalize,
+  handleStreamingDiffRollback,
+} from "../handlers/streaming-diff.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -124,6 +131,11 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       ["GENERATE_TESTS", handleGenerateTests],
       ["TEST_STATUS", handleTestStatus],
       ["BROWSER", handleBrowser],
+      ["STREAMING_DIFF_START", handleStreamingDiffStart],
+      ["STREAMING_DIFF_CHUNK", handleStreamingDiffChunk],
+      ["STREAMING_DIFF_STATUS", handleStreamingDiffStatus],
+      ["STREAMING_DIFF_FINALIZE", handleStreamingDiffFinalize],
+      ["STREAMING_DIFF_ROLLBACK", handleStreamingDiffRollback],
     ]);
 
     // ChatHandler needs broadcast and moduleManager

@@ -44,7 +44,11 @@ export type AuditAction =
   | "auth.connect"
   | "auth.reject"
   | "a2a.route"
-  | "a2a.domain_verify";
+  | "a2a.domain_verify"
+  | "streaming.diff.start"
+  | "streaming.diff.chunk"
+  | "streaming.diff.finalize"
+  | "streaming.diff.rollback";
 
 export interface AuditEntry {
   ts:          string;

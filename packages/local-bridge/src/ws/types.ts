@@ -83,7 +83,12 @@ export type TypedMessageType =
   | "RUN_TESTS"
   | "GENERATE_TESTS"
   | "TEST_STATUS"
-  | "BROWSER";
+  | "BROWSER"
+  | "STREAMING_DIFF_START"
+  | "STREAMING_DIFF_CHUNK"
+  | "STREAMING_DIFF_STATUS"
+  | "STREAMING_DIFF_FINALIZE"
+  | "STREAMING_DIFF_ROLLBACK";
 
 export interface TypedMessage {
   type: TypedMessageType;
