@@ -1,0 +1,23 @@
+{
+  "name": "dmlog",
+  "version": "1.0.0",
+  "description": "TTRPG AI Dungeon Master with dice rolling, encounter generation, and campaign management",
+  "author": "Cocapn",
+  "license": "MIT",
+  "keywords": ["ttrpg", "dungeon-master", "dnd", "dice", "encounter", "campaign", "tabletop"],
+  "domains": ["dmlog.ai"],
+  "emoji": "🎲",
+  "features": ["dice-roller", "encounter-generator", "character-tracker", "campaign-notes"],
+  "modules": ["https://github.com/cocapn/module-dice-roller"],
+  "cocapn": {
+    "minVersion": "0.1.0",
+    "bridge": {
+      "port": 8787,
+      "auth": true
+    },
+    "brain": {
+      "private": true,
+      "encryption": "age"
+    }
+  }
+}

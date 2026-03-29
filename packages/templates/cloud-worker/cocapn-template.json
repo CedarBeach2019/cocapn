@@ -1,0 +1,19 @@
+{
+  "name": "cloud-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers deployment with Hono framework for edge computing",
+  "author": "Cocapn",
+  "license": "MIT",
+  "keywords": ["cloudflare", "worker", "serverless", "edge", "hono"],
+  "domains": ["personallog.ai", "makerlog.ai"],
+  "emoji": "⚡",
+  "features": ["cloud-backend", "edge-computing"],
+  "modules": [],
+  "cocapn": {
+    "minVersion": "0.1.0",
+    "bridge": {
+      "port": 8787,
+      "auth": true
+    }
+  }
+}

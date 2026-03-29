@@ -304,3 +304,4 @@ export * from './config.js';
 export * from './pii.js';
 export * from './streaming.js';
 export * from './routing.js';
+export * from './connector.js';

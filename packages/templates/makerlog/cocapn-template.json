@@ -1,0 +1,23 @@
+{
+  "name": "makerlog",
+  "version": "1.0.0",
+  "description": "Developer project tracker with build logs, metrics, and technical documentation",
+  "author": "Cocapn",
+  "license": "MIT",
+  "keywords": ["developer", "projects", "maker", "build-log", "metrics", "programming", "coding"],
+  "domains": ["makerlog.ai"],
+  "emoji": "🛠️",
+  "features": ["build-logs", "metrics-dashboard", "project-tracking", "code-review"],
+  "modules": [],
+  "cocapn": {
+    "minVersion": "0.1.0",
+    "bridge": {
+      "port": 8787,
+      "auth": true
+    },
+    "brain": {
+      "private": true,
+      "encryption": "age"
+    }
+  }
+}

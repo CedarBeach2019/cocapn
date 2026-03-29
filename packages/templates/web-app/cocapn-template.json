@@ -1,0 +1,12 @@
+{
+  "name": "web-app",
+  "version": "1.0.0",
+  "description": "React/Preact web application frontend with Vite build system",
+  "author": "Cocapn",
+  "license": "MIT",
+  "keywords": ["react", "preact", "web", "frontend", "vite", "ui"],
+  "domains": ["personallog.ai"],
+  "emoji": "🌐",
+  "features": ["web-ui", "hot-reload"],
+  "modules": []
+}

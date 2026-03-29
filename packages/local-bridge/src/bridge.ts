@@ -37,6 +37,7 @@ import { SkillLoader } from "./skills/loader.js";
 import { SkillDecisionTree } from "./skills/decision-tree.js";
 import { RepoGraph } from "./graph/index.js";
 import { SelfAssembler, SelfAssembler as AssemblySystem } from "./assembly/index.js";
+import { CloudConnector, type CloudConnectorConfig } from "./cloud-bridge/connector.js";
 import type { BridgeConfig } from "./config/types.js";
 import type { AssemblyResult } from "./assembly/index.js";
 
@@ -93,6 +94,7 @@ export class Bridge {
   private repoGraph:     RepoGraph;
   private assembly:      AssemblyResult | undefined;
   private assembler:     AssemblySystem;
+  private cloudConnector: CloudConnector | undefined;
 
   constructor(options: BridgeOptions) {
     this.options    = options;
@@ -202,6 +204,32 @@ export class Bridge {
       this.server["options"].fleetKey = this.fleetKey;
     }
 
+    // Initialize CloudConnector if we have cloud adapters configured
+    const cloudWorkerUrl = this.getCloudWorkerUrl();
+    if (cloudWorkerUrl && this.fleetKey) {
+      const connectorConfig: CloudConnectorConfig = {
+        workerUrl: cloudWorkerUrl,
+        fleetJwtSecret: this.fleetKey,
+        instanceId: this.instanceId,
+        bridgeMode: this.config.config.mode,
+        heartbeatInterval: 30000,
+      };
+      this.cloudConnector = new CloudConnector(connectorConfig);
+      console.info(`[bridge] Cloud connector initialized: ${cloudWorkerUrl}`);
+
+      // Start heartbeat and expose to server
+      this.cloudConnector.startHeartbeat();
+      (this.server as any).cloudConnector = this.cloudConnector;
+
+      // Auto-ping on startup
+      const pingResult = await this.cloudConnector.ping();
+      if (pingResult) {
+        console.info("[bridge] Cloud worker connection established");
+      } else {
+        console.warn("[bridge] Cloud worker unreachable - will retry");
+      }
+    }
+
     await this.sync.pull();
     this.sync.startTimers();
     this.watcher.start();
@@ -263,6 +291,7 @@ export class Bridge {
     this.sync.stopTimers();
     await this.watcher.stop();
     await this.spawner.stopAll();
+    this.cloudConnector?.destroy();
     await this.server.stop();
     this.secrets.clearCache();
     console.info("[bridge] Stopped.");
@@ -353,5 +382,31 @@ export class Bridge {
       const result = await this.sync.latestCommitSha();
       if (result) await this.admiral.notifyGitCommit(result);
     } catch { /* non-fatal */ }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cloud connector helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the cloud worker URL from cloud adapters config.
+   * Returns the first worker URL or undefined if not configured.
+   */
+  private getCloudWorkerUrl(): string | undefined {
+    if (!this.cloudAdapters) return undefined;
+
+    const adapters = this.cloudAdapters.getAll();
+    if (adapters.length === 0) return undefined;
+
+    // Return the first worker URL
+    return adapters[0].getWorkerUrl();
+  }
+
+  /**
+   * Get the CloudConnector instance.
+   * Used by handlers and for testing.
+   */
+  getCloudConnector(): CloudConnector | undefined {
+    return this.cloudConnector;
   }
 }

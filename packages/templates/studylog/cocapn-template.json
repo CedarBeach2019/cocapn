@@ -1,0 +1,23 @@
+{
+  "name": "studylog",
+  "version": "1.0.0",
+  "description": "Interactive learning platform with spaced repetition, flashcards, and quiz generation",
+  "author": "Cocapn",
+  "license": "MIT",
+  "keywords": ["education", "learning", "flashcards", "spaced-repetition", "quiz", "study", "tutor"],
+  "domains": ["studylog.ai"],
+  "emoji": "📚",
+  "features": ["flashcard-system", "quiz-generator", "progress-tracking", "concept-mapping", "spaced-repetition"],
+  "modules": ["https://github.com/cocapn/module-flashcards", "https://github.com/cocapn/module-quiz"],
+  "cocapn": {
+    "minVersion": "0.1.0",
+    "bridge": {
+      "port": 8787,
+      "auth": true
+    },
+    "brain": {
+      "private": true,
+      "encryption": "age"
+    }
+  }
+}

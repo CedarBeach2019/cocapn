@@ -62,6 +62,12 @@ import {
   handleStreamingDiffFinalize,
   handleStreamingDiffRollback,
 } from "../handlers/streaming-diff.js";
+import {
+  handleCloudStatus,
+  handleCloudSubmitTask,
+  handleCloudTaskResult,
+} from "../handlers/cloud.js";
+import type { CloudConnector } from "../cloud-bridge/connector.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -136,6 +142,9 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       ["STREAMING_DIFF_STATUS", handleStreamingDiffStatus],
       ["STREAMING_DIFF_FINALIZE", handleStreamingDiffFinalize],
       ["STREAMING_DIFF_ROLLBACK", handleStreamingDiffRollback],
+      ["CLOUD_STATUS", handleCloudStatus],
+      ["CLOUD_SUBMIT_TASK", handleCloudSubmitTask],
+      ["CLOUD_TASK_RESULT", handleCloudTaskResult],
     ]);
 
     // ChatHandler needs broadcast and moduleManager
@@ -205,6 +214,21 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
         return { status: 'degraded', message: 'No skills registered' };
       }
       return { status: 'healthy', message: `${skillCount} skills registered` };
+    });
+
+    // Cloud connectivity check (optional)
+    this.healthChecker.addCheck('cloud', async () => {
+      const cloudConnector = (this.options.bridge as any)?.cloudConnector as CloudConnector | undefined;
+      if (!cloudConnector) {
+        return { status: 'degraded', message: 'Cloud connector not configured' };
+      }
+
+      const status = await cloudConnector.getStatus();
+      if (!status.connected) {
+        return { status: 'unhealthy', message: status.error || 'Cloud worker unreachable' };
+      }
+
+      return { status: 'healthy', message: `Connected to ${status.workerUrl} (${status.latency}ms latency)` };
     });
   }
 

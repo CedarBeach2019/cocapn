@@ -6,6 +6,7 @@ import { Terminal }       from "@/components/Terminal.js";
 import { ModulePanel }    from "@/components/ModulePanel.js";
 import { MagazineLayout } from "@/layouts/MagazineLayout.js";
 import { useUpdates }     from "@/hooks/useUpdates.js";
+import { Dashboard }       from "@/components/Dashboard.js";
 import type { BridgeStatus, SessionInfo, AgentInfo } from "@/types/bridge.js";
 import type { LayoutMode, PanelConfig } from "@/types/skin.js";
 
@@ -102,7 +103,7 @@ function FleetPill({ domains }: { domains: string[] }) {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
-type PanelId = "chat" | "terminal" | "modules" | "updates";
+type PanelId = "chat" | "terminal" | "modules" | "updates" | "dashboard";
 
 interface HeaderProps {
   domain: string;
@@ -123,7 +124,7 @@ function Header({ domain, activePanel, onPanelChange, fleetDomains }: HeaderProp
       <div className="flex-1" />
       {/* Mobile panel switcher */}
       <nav className="flex md:hidden gap-1">
-        {(["chat", "terminal", "modules", "updates"] as PanelId[]).map((id) => (
+        {(["chat", "dashboard", "terminal", "modules", "updates"] as PanelId[]).map((id) => (
           <button
             key={id}
             onClick={() => onPanelChange(id)}
@@ -156,10 +157,11 @@ function Sidebar({ activePanel, onPanelChange, agents, sessions }: SidebarProps)
   const bridge = useBridgeContext();
 
   const navItems: Array<{ id: PanelId; label: string; hotkey: string }> = [
-    { id: "chat",     label: "Chat",     hotkey: "1" },
-    { id: "terminal", label: "Terminal", hotkey: "2" },
-    { id: "modules",  label: "Modules",  hotkey: "3" },
-    { id: "updates",  label: "Updates",  hotkey: "4" },
+    { id: "chat",      label: "Chat",      hotkey: "1" },
+    { id: "dashboard", label: "Dashboard", hotkey: "2" },
+    { id: "terminal",  label: "Terminal",  hotkey: "3" },
+    { id: "modules",   label: "Modules",   hotkey: "4" },
+    { id: "updates",   label: "Updates",   hotkey: "5" },
   ];
 
   return (
@@ -296,9 +298,10 @@ export function App() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === "1") setActivePanel("chat");
-      if (e.key === "2") setActivePanel("terminal");
-      if (e.key === "3") setActivePanel("modules");
-      if (e.key === "4") setActivePanel("updates");
+      if (e.key === "2") setActivePanel("dashboard");
+      if (e.key === "3") setActivePanel("terminal");
+      if (e.key === "4") setActivePanel("modules");
+      if (e.key === "5") setActivePanel("updates");
       if (e.key === "`") setTermOpen((v) => !v);
     };
     window.addEventListener("keydown", handler);
@@ -350,10 +353,11 @@ export function App() {
   );
 
   const panelContent: Record<PanelId, ReactNode> = {
-    chat:     <ChatPanel defaultAgentId={defaultAgent} className="h-full" />,
-    terminal: <Terminal className="h-full" />,
-    modules:  <ModulePanel className="h-full" />,
-    updates:  magazinePanel,
+    chat:      <ChatPanel defaultAgentId={defaultAgent} className="h-full" />,
+    dashboard: <Dashboard className="h-full" />,
+    terminal:  <Terminal className="h-full" />,
+    modules:   <ModulePanel className="h-full" />,
+    updates:   magazinePanel,
   };
 
   // Updates panel doesn't require a bridge connection — it reads from GitHub Pages.
