@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Cocapn: Hybrid Agent OS
 
 ## Project Overview
@@ -63,3 +67,25 @@ See `docs/ROADMAP.md` for full details. Work items in priority order:
 - When changing encryption strategy
 - When `Brain.setFact` / `createTask` commit format diverges from `"update memory: <action>"`
 - When Router intent detection needs an LLM call (should stay regex/heuristic for offline use)
+
+## Improvements Suggested
+Based on analysis, add the following sections to enhance productivity:
+
+## Common Development Commands
+- Install dependencies in a package: cd packages/<package-name> && npm install
+- Build a package: cd packages/<package-name> && npm run build
+- Run tests for a package: cd packages/<package-name> && npm test
+- Typecheck a package: cd packages/<package-name> && npm run typecheck
+- Start the local bridge: cocapn-bridge --repo ./<private-repo-path>
+- Create new instance: npx create-cocapn <name> --domain <domain>
+- Add a module: cocapn-bridge module add <url>
+- Set secret: cocapn-bridge secret add <key>
+
+## High-Level Code Structure
+- Monorepo structure with independent packages for protocols, local-bridge, ui, and cloud-agents.
+- Protocols package handles MCP and A2A implementations, buildable to ESM and CJS.
+- Local bridge is the core runtime, managing WebSockets, Git sync, and agent spawning.
+- UI is a Vite-based React app with Tailwind for styling.
+- Templates provide scaffolds for user repositories.
+- Docs directory contains architecture details and roadmaps.
+
