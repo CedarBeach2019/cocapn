@@ -10,14 +10,14 @@
  * Approach Generator Options
  */
 export interface ApproachGeneratorOptions {
-  /** Model to use for generation (default: 'claude-sonnet-4') */
+  /** Model to use for generation (default: 'deepseek-chat') */
   model?: string;
   /** Maximum number of approaches to generate (default: 3) */
   maxApproaches?: number;
-  /** Optional API key for LLM calls */
-  apiKey?: string;
-  /** Optional endpoint URL (for custom LLM endpoints) */
-  endpoint?: string;
+  /** API key for DeepSeek API */
+  apiKey: string;
+  /** Base URL for API (default: 'https://api.deepseek.com') */
+  baseUrl?: string;
 }
 
 /**
@@ -41,26 +41,49 @@ export interface MockLLMResponse {
 }
 
 /**
+ * DeepSeek API Response Structure
+ */
+interface DeepSeekAPIResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+/**
+ * Approach structure from LLM response
+ */
+interface Approach {
+  name: string;
+  description: string;
+  tradeoffs: string;
+}
+
+/**
  * Approach Generator — generates different approaches for solving tasks
  *
  * This class is responsible for:
- * - Calling an LLM to generate different approaches
+ * - Calling DeepSeek API to generate different approaches
  * - Handling both real LLM calls and mock responses (for testing)
+ * - Falling back to heuristic approaches if API fails
  * - Returning structured approach descriptions
- *
- * NOTE: For now, this is a stub that can be wired to real LLM calls later.
- * The key is the framework for approach generation.
  */
 export class ApproachGenerator {
   private options: ApproachGeneratorOptions;
   private mockResponse: MockLLMResponse | null = null;
 
-  constructor(options?: ApproachGeneratorOptions) {
+  constructor(options: ApproachGeneratorOptions) {
     this.options = {
-      model: options?.model || 'claude-sonnet-4',
-      maxApproaches: options?.maxApproaches || 3,
-      apiKey: options?.apiKey,
-      endpoint: options?.endpoint,
+      model: options.model || 'deepseek-chat',
+      maxApproaches: options.maxApproaches || 3,
+      apiKey: options.apiKey,
+      baseUrl: options.baseUrl || 'https://api.deepseek.com',
     };
   }
 
@@ -90,17 +113,10 @@ export class ApproachGenerator {
     // Use maxApproaches from options if count is greater
     const actualCount = Math.min(count, this.options.maxApproaches || count);
 
-    // For now, return heuristic-based approaches
-    // Real implementation would call LLM here
-    const approaches = this.generateHeuristicApproaches(task, actualCount, context);
+    // Try to generate approaches using DeepSeek API
+    const result = await this.generateLLMApproaches(task, actualCount, context);
 
-    // Estimate token cost (rough estimate)
-    const tokensUsed = this.estimateTokenCost(task, context);
-
-    return {
-      approaches,
-      tokensUsed,
-    };
+    return result;
   }
 
   /**
@@ -110,6 +126,93 @@ export class ApproachGenerator {
    */
   setMockResponse(response: MockLLMResponse): void {
     this.mockResponse = response;
+  }
+
+  /**
+   * Generate approaches using DeepSeek API
+   *
+   * @param task - The task description
+   * @param count - Number of approaches to generate
+   * @param context - Optional context
+   * @returns ApproachGenerationResult with approaches and token usage
+   */
+  private async generateLLMApproaches(
+    task: string,
+    count: number,
+    context?: string
+  ): Promise<ApproachGenerationResult> {
+    const systemPrompt = `You are a software architecture advisor. Given a coding task, generate ${count} different approaches to solve it.
+
+For each approach, provide:
+1. A name (2-3 words)
+2. A description of the strategy (1-2 sentences)
+3. Key tradeoffs (1 sentence)
+
+Format each approach as a JSON array of objects with "name", "description", and "tradeoffs" fields.
+Output ONLY the JSON array, no other text.`;
+
+    const userPrompt = `Task: ${task}${context ? '\n\nContext:\n' + context : ''}`;
+
+    try {
+      const response = await fetch(`${this.options.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.options.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.options.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`DeepSeek API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = (await response.json()) as DeepSeekAPIResponse;
+      const content = data.choices?.[0]?.message?.content || '[]';
+
+      // Parse JSON from response (handle markdown code blocks)
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON array found in response');
+      }
+
+      const approaches = JSON.parse(jsonMatch[0]) as Approach[];
+
+      // Validate that we got valid approaches
+      if (!Array.isArray(approaches) || approaches.length === 0) {
+        throw new Error('Invalid or empty approaches array');
+      }
+
+      // Format approaches as readable strings
+      const formattedApproaches = approaches.map(
+        (a) => `${a.name}: ${a.description} (Tradeoff: ${a.tradeoffs})`
+      );
+
+      // Get actual token usage from API response
+      const tokensUsed = data.usage?.total_tokens || this.estimateTokenCost(task, context);
+
+      return {
+        approaches: formattedApproaches.slice(0, count),
+        tokensUsed,
+      };
+    } catch (error) {
+      // Fallback to heuristic approaches on API failure
+      const fallbackApproaches = this.generateHeuristicApproaches(task, count, context);
+      const fallbackTokens = this.estimateTokenCost(task, context);
+
+      return {
+        approaches: fallbackApproaches,
+        tokensUsed: fallbackTokens,
+      };
+    }
   }
 
   /**
