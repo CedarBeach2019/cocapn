@@ -27,6 +27,7 @@ import type { SkillLoader } from "../skills/loader.js";
 import type { SkillDecisionTree } from "../skills/decision-tree.js";
 import type { RepoGraph } from "../graph/index.js";
 import type { HandoffProcessor } from "../handoff/processor.js";
+import type { SettingsManager } from "../settings/index.js";
 
 // Forward declaration for Bridge to avoid circular dependency
 export interface BridgeLike {
@@ -84,6 +85,7 @@ export interface HandlerContext {
   readonly repoGraph: RepoGraph | undefined;
   readonly handoffProcessor: HandoffProcessor | undefined;
   readonly bridge: BridgeLike | undefined;
+  readonly settingsManager: SettingsManager | undefined;
 
   // Mutable — lazily created
   getModuleManager(): ModuleManager;

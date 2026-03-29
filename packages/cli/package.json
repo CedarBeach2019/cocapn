@@ -1,0 +1,50 @@
+{
+  "name": "cocapn",
+  "version": "0.1.0",
+  "description": "Unified CLI tool for cocapn agent runtime and fleet protocol",
+  "type": "module",
+  "bin": {
+    "cocapn": "./bin/cocapn.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "cocapn",
+    "cli",
+    "agents",
+    "git",
+    "websocket"
+  ],
+  "author": "cocapn contributors",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.0.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ]
+}

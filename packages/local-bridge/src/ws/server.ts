@@ -68,6 +68,7 @@ import {
   handleCloudTaskResult,
 } from "../handlers/cloud.js";
 import type { CloudConnector } from "../cloud-bridge/connector.js";
+import { SettingsManager } from "../settings/index.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -96,6 +97,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
   private healthChecker: HealthChecker;
   private offlineQueue:  OfflineQueue;
   private tokenTracker:  TokenTracker;
+  private settingsManager: SettingsManager;
   private healthInterval?: ReturnType<typeof setInterval>;
 
   constructor(options: BridgeServerOptions) {
@@ -120,6 +122,12 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
     // Initialize TokenTracker
     this.tokenTracker = new TokenTracker({ maxRecords: 10000 });
+
+    // Initialize SettingsManager
+    this.settingsManager = new SettingsManager();
+    this.settingsManager.load().catch((err) => {
+      console.error('[bridge] Failed to load settings:', err);
+    });
 
     // Build HandlerContext with all services
     this.handlerCtx = this.buildHandlerContext(repoGraph);
@@ -256,6 +264,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       decisionTree: this.options.decisionTree,
       repoGraph,
       bridge: this.options.bridge,
+      settingsManager: this.settingsManager,
       getModuleManager: () => {
         if (!moduleManagerRef.current) {
           moduleManagerRef.current = new ModuleManager(this.options.repoRoot);

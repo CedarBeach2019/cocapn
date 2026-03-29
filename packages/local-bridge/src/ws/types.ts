@@ -18,6 +18,7 @@ import type { SkillLoader } from "../skills/loader.js";
 import type { SkillDecisionTree } from "../skills/decision-tree.js";
 import type { RepoGraph } from "../graph/index.js";
 import type { HandoffProcessor } from "../handoff/processor.js";
+import type { SettingsManager } from "../settings/index.js";
 
 // Forward declaration for Bridge to avoid circular dependency
 export interface BridgeLike {
@@ -122,7 +123,9 @@ export type TypedMessageType =
   | "STREAMING_DIFF_CHUNK"
   | "STREAMING_DIFF_STATUS"
   | "STREAMING_DIFF_FINALIZE"
-  | "STREAMING_DIFF_ROLLBACK";
+  | "STREAMING_DIFF_ROLLBACK"
+  | "GET_SETTINGS"
+  | "UPDATE_SETTINGS";
 
 export interface TypedMessage {
   type: TypedMessageType;

@@ -579,6 +579,45 @@ async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerC
       return { success: true, preview };
     }
 
+    case "settings/get": {
+      if (!ctx.settingsManager) {
+        return { error: "Settings manager not available" };
+      }
+      const { handleGetSettings } = await import("../handlers/settings.js");
+      // The handler sends the response directly, but for RPC we need to return
+      const settings = ctx.settingsManager.getAll();
+      const safeString = ctx.settingsManager.toSafeString();
+      return { success: true, settings: JSON.parse(safeString) };
+    }
+
+    case "settings/update": {
+      if (!ctx.settingsManager) {
+        return { error: "Settings manager not available" };
+      }
+      const { handleUpdateSettings } = await import("../handlers/settings.js");
+      const settings = p.settings as Record<string, unknown> | undefined;
+      const validate = p.validate as boolean | undefined;
+      if (!settings) {
+        return { error: "No settings provided" };
+      }
+      ctx.settingsManager.merge(settings);
+      return { success: true, updated: true };
+    }
+
+    case "settings/validate": {
+      if (!ctx.settingsManager) {
+        return { error: "Settings manager not available" };
+      }
+      const { handleSettingsValidate } = await import("../handlers/settings.js");
+      const settings = p.settings as Record<string, unknown> | undefined;
+      if (!settings) {
+        return { error: "No settings provided" };
+      }
+      // Validation happens inline
+      const validation = ctx.settingsManager.validate();
+      return { success: true, validation };
+    }
+
     default:
       throw Object.assign(new Error(`Unknown bridge method: ${method}`), { code: -32601 });
   }
