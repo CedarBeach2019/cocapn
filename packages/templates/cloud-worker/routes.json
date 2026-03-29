@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "id": "search",
+      "patterns": ["search", "find", "look up", "what is"],
+      "action": "search",
+      "confidence": 0.8
+    },
+    {
+      "id": "settings",
+      "patterns": ["settings", "configure", "preferences", "options"],
+      "action": "open-settings",
+      "confidence": 0.9
+    },
+    {
+      "id": "deploy",
+      "patterns": ["deploy", "publish", "push to workers"],
+      "action": "invoke-tool",
+      "tool": "deploy",
+      "confidence": 0.9
+    }
+  ]
+}

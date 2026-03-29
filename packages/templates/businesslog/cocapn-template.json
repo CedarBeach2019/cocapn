@@ -1,23 +1,16 @@
 {
   "name": "businesslog",
   "version": "1.0.0",
-  "description": "Enterprise AI assistant with business analytics, report generation, and professional communication tools",
-  "author": "Cocapn",
+  "description": "Enterprise assistant — professional team management and meeting prep",
+  "author": "Superinstance <team@superinstance.com>",
   "license": "MIT",
-  "keywords": ["business", "enterprise", "analytics", "reports", "professional", "corporate"],
-  "domains": ["businesslog.ai"],
-  "emoji": "💼",
-  "features": ["business-analytics", "report-generation", "data-insights", "professional-communication"],
-  "modules": [],
-  "cocapn": {
-    "minVersion": "0.1.0",
-    "bridge": {
-      "port": 8787,
-      "auth": true
-    },
-    "brain": {
-      "private": true,
-      "encryption": "age"
-    }
+  "keywords": ["enterprise", "business", "team", "professional", "management"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/meeting-prep.skill", "skills/report-gen.skill"],
+  "components": ["components/team-panel.js", "components/analytics-dashboard.js", "components/report-generator.js", "components/security-audit.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
   }
 }

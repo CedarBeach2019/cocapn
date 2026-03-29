@@ -1,23 +1,16 @@
 {
   "name": "studylog",
   "version": "1.0.0",
-  "description": "Interactive learning platform with spaced repetition, flashcards, and quiz generation",
-  "author": "Cocapn",
+  "description": "Interactive learning companion — patient tutor with quizzes and study tracking",
+  "author": "Superinstance <team@superinstance.com>",
   "license": "MIT",
-  "keywords": ["education", "learning", "flashcards", "spaced-repetition", "quiz", "study", "tutor"],
-  "domains": ["studylog.ai"],
-  "emoji": "📚",
-  "features": ["flashcard-system", "quiz-generator", "progress-tracking", "concept-mapping", "spaced-repetition"],
-  "modules": ["https://github.com/cocapn/module-flashcards", "https://github.com/cocapn/module-quiz"],
-  "cocapn": {
-    "minVersion": "0.1.0",
-    "bridge": {
-      "port": 8787,
-      "auth": true
-    },
-    "brain": {
-      "private": true,
-      "encryption": "age"
-    }
+  "keywords": ["education", "learning", "tutor", "quiz", "study"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/quiz-generator.skill", "skills/socratic-questioning.skill"],
+  "components": ["components/study-route.js", "components/quiz-panel.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
   }
 }

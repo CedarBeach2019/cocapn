@@ -1,23 +1,16 @@
 {
   "name": "makerlog",
   "version": "1.0.0",
-  "description": "Developer project tracker with build logs, metrics, and technical documentation",
-  "author": "Cocapn",
+  "description": "Developer companion — project tracking, builds, git workflows",
+  "author": "Superinstance <team@superinstance.com>",
   "license": "MIT",
-  "keywords": ["developer", "projects", "maker", "build-log", "metrics", "programming", "coding"],
-  "domains": ["makerlog.ai"],
-  "emoji": "🛠️",
-  "features": ["build-logs", "metrics-dashboard", "project-tracking", "code-review"],
-  "modules": [],
-  "cocapn": {
-    "minVersion": "0.1.0",
-    "bridge": {
-      "port": 8787,
-      "auth": true
-    },
-    "brain": {
-      "private": true,
-      "encryption": "age"
-    }
+  "keywords": ["development", "developer", "git", "build", "project"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/git-ops.skill", "skills/deploy-monitor.skill"],
+  "components": ["components/project-board.js", "components/build-status.js", "components/log-viewer.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
   }
 }

@@ -1,19 +1,16 @@
 {
   "name": "cloud-worker",
   "version": "1.0.0",
-  "description": "Cloudflare Workers deployment with Hono framework for edge computing",
-  "author": "Cocapn",
+  "description": "Cloudflare Workers deployment template with serverless personality",
+  "author": "Superinstance <team@superinstance.com>",
   "license": "MIT",
-  "keywords": ["cloudflare", "worker", "serverless", "edge", "hono"],
-  "domains": ["personallog.ai", "makerlog.ai"],
-  "emoji": "⚡",
-  "features": ["cloud-backend", "edge-computing"],
-  "modules": [],
-  "cocapn": {
-    "minVersion": "0.1.0",
-    "bridge": {
-      "port": 8787,
-      "auth": true
-    }
+  "keywords": ["cloudflare", "workers", "cloud", "serverless"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": [],
+  "components": [],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
   }
 }

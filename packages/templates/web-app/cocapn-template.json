@@ -1,12 +1,16 @@
 {
-  "name": "web-app",
+  "name": "playerlog",
   "version": "1.0.0",
-  "description": "React/Preact web application frontend with Vite build system",
-  "author": "Cocapn",
+  "description": "Gaming buddy — game stats, achievements, and gaming discussions",
+  "author": "Superinstance <team@superinstance.com>",
   "license": "MIT",
-  "keywords": ["react", "preact", "web", "frontend", "vite", "ui"],
-  "domains": ["personallog.ai"],
-  "emoji": "🌐",
-  "features": ["web-ui", "hot-reload"],
-  "modules": []
+  "keywords": ["gaming", "games", "achievements", "stats", "player"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/game-lookup.skill", "skills/achievement-tracker.skill"],
+  "components": ["components/game-stats.js", "components/achievement-panel.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
+  }
 }
