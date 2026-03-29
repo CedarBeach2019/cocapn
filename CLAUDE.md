@@ -143,6 +143,42 @@ cd packages/local-bridge && npx vitest run  # Currently only local-bridge has te
 
 ## Current Work (2026-03-28)
 
+### Server Refactor — IN PROGRESS (Claude Code)
+Source plan: `docs/superpowers/plans/2026-03-28-server-refactor.md`
+
+| Task | Status | Commit |
+|------|--------|--------|
+| 1. Extract types | ✅ Done | `adcb4e0` |
+| 2. Extract auth handler | ✅ Done | `78c6654` |
+| 3. Extract send helpers | ✅ Done | `c63c4d6` |
+| 4. Extract handler types | ✅ Done | `6572340` |
+| 5. Extract individual handlers | ✅ Done | `6572340` |
+| 6. Extract dispatcher | ✅ Done | `6572340` |
+| 7. Extract peer handler | 🔄 Running | — |
+| 8. Extract intent parsers | 🔄 Running | — |
+| 9. Final server.ts cleanup | 🔄 Running | — |
+
+**Result so far**: server.ts 878→338 lines, 203/210 tests pass.
+
+### Execution Priority (from roadmap2.txt)
+**Week 1 — Social Layer (critical path for virality)**:
+1. Profile Generation & Export (roadmap2 Prompt 1.1) — 4h
+2. Activity Feed Aggregation (roadmap2 Prompt 1.2) — 6h
+3. Magazine Layout Enhancements (roadmap2 Prompt 1.4) — 4h
+
+**Week 2 — Registry + Testing**:
+4. AdmiralDO Registry (roadmap2 Prompt 1.3) — 3h
+5. Integration Test Suite (roadmap2 Prompt 3) — 8h
+
+**Week 3 — E2E + Polish**:
+6. E2E Tests with Playwright (roadmap2 Prompt 4) — 8h
+7. Performance & Polish (roadmap2 Prompt 5) — 4h
+
+**Week 4 — Cloud Background Tasks**:
+8. Scheduled Task Parser (roadmap2 Prompt 2.1) — 4h
+9. AdmiralDO Task Queue (roadmap2 Prompt 2.2) — 4h
+10. Cloud Worker Execution (roadmap2 Prompt 2.3) — 4h
+
 ### In Progress / Queued
 1. **Server refactor** — decompose 878-line server.ts into handler modules (plan: `docs/superpowers/plans/2026-03-28-server-refactor.md`)
 2. **Social layer** — profiles, discovery registry, cross-domain messaging (plan: `docs/superpowers/plans/2026-03-28-social-layer.md`)
