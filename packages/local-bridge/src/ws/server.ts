@@ -48,6 +48,11 @@ import { handleHttpPeerRequest } from "../handlers/peer.js";
 import { HealthChecker, checkGit, checkBrain, checkDisk, checkWebSocket, type SystemHealthStatus } from "../health/index.js";
 import { createOfflineQueue, OfflineQueue } from "../cloud-bridge/offline-queue.js";
 import { TokenTracker } from "../metrics/token-tracker.js";
+import { RepoGraph } from "../graph/index.js";
+import { handleSkillList, handleSkillLoad, handleSkillUnload, handleSkillMatch, handleSkillContext, handleSkillStats } from "../handlers/skills.js";
+import { handleTreeSearch, handleTreeSearchStatus } from "../handlers/tree-search.js";
+import { handleGraphQuery, handleGraphStats } from "../handlers/graph.js";
+import { handleTokenStats, handleTokenEfficiency, handleTokenWaste } from "../handlers/metrics.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -85,9 +90,12 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     this.chatRouter = new ChatRouter();
     this.sender     = createSender();
 
+    // Initialize RepoGraph if not provided
+    const repoGraph = options.repoGraph || new RepoGraph(options.repoRoot);
+
     // Initialize HealthChecker with standard checks
     this.healthChecker = new HealthChecker();
-    this.setupHealthChecks();
+    this.setupHealthChecks(repoGraph);
 
     // Initialize OfflineQueue
     this.offlineQueue = new OfflineQueue(options.repoRoot);
@@ -99,7 +107,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     this.tokenTracker = new TokenTracker({ maxRecords: 10000 });
 
     // Build HandlerContext with all services
-    this.handlerCtx = this.buildHandlerContext();
+    this.handlerCtx = this.buildHandlerContext(repoGraph);
 
     // Build HandlerRegistry with all typed message handlers
     this.handlerRegistry = new Map([
@@ -120,23 +128,37 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       moduleManager: this.handlerCtx.getModuleManager(),
       chatRouter:    this.chatRouter,
       broadcast:     (payload) => this.broadcastToAll(payload),
+      tokenTracker:  this.tokenTracker,
+      skillLoader:   options.skillLoader,
+      decisionTree:  options.decisionTree,
       ...(options.cloudAdapters !== undefined ? { cloudAdapters: options.cloudAdapters } : {}),
       ...(options.brain        !== undefined ? { brain:        options.brain        } : {}),
       ...(options.fleetKey     !== undefined ? { fleetKey:     options.fleetKey     } : {}),
+    });
+
+    // Build graph asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        await repoGraph.initialize();
+        await repoGraph.build();
+        console.info('[bridge] Repo graph built successfully');
+      } catch (error) {
+        console.error('[bridge] Failed to build repo graph:', error);
+      }
     });
   }
 
   /**
    * Setup standard health checks
    */
-  private setupHealthChecks(): void {
+  private setupHealthChecks(repoGraph: RepoGraph): void {
     const port = this.options.config.config.port;
 
     // Git repository check
     this.healthChecker.addCheck('git', checkGit(this.options.repoRoot));
 
     // Brain/facts check
-    const factsPath = this.options.config.config.facts || 'cocapn/memory/facts.json';
+    const factsPath = 'cocapn/memory/facts.json';
     this.healthChecker.addCheck('brain', checkBrain(this.options.repoRoot, factsPath));
 
     // Disk write check
@@ -144,13 +166,35 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
     // WebSocket server check
     this.healthChecker.addCheck('websocket', checkWebSocket(port));
+
+    // Repo graph check
+    this.healthChecker.addCheck('graph', async () => {
+      try {
+        const stats = await repoGraph.stats();
+        if (stats.nodes === 0) {
+          return { status: 'degraded', message: 'Graph not built yet' };
+        }
+        return { status: 'healthy', message: `Graph has ${stats.nodes} nodes` };
+      } catch (error) {
+        return { status: 'unhealthy', message: error instanceof Error ? error.message : String(error) };
+      }
+    });
+
+    // Skills check
+    this.healthChecker.addCheck('skills', () => {
+      const skillCount = this.options.skillLoader?.stats().total || 0;
+      if (skillCount === 0) {
+        return { status: 'degraded', message: 'No skills registered' };
+      }
+      return { status: 'healthy', message: `${skillCount} skills registered` };
+    });
   }
 
   /**
    * Build the HandlerContext that all handlers need.
    * This provides access to all services without passing 8+ parameters.
    */
-  private buildHandlerContext(): HandlerContext {
+  private buildHandlerContext(repoGraph: RepoGraph): HandlerContext {
     const moduleManagerRef = { current: this.options.moduleManager };
 
     return {
@@ -168,6 +212,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       tokenTracker: this.tokenTracker,
       skillLoader: this.options.skillLoader,
       decisionTree: this.options.decisionTree,
+      repoGraph,
       getModuleManager: () => {
         if (!moduleManagerRef.current) {
           moduleManagerRef.current = new ModuleManager(this.options.repoRoot);

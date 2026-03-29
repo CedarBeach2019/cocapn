@@ -35,6 +35,10 @@ import {
   parsePeerQueryIntent,
   parseSkinIntent,
 } from "./intents.js";
+import type { TokenTracker } from "../metrics/token-tracker.js";
+import type { SkillLoader } from "../skills/loader.js";
+import type { SkillDecisionTree } from "../skills/decision-tree.js";
+import { TokenTracker as TT } from "../metrics/token-tracker.js";
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +53,9 @@ export interface ChatHandlerDeps {
   cloudAdapters?: CloudAdapterRegistry;
   moduleManager: ModuleManager;
   fleetKey?: string;
+  tokenTracker?: TokenTracker;
+  skillLoader?: SkillLoader | undefined;
+  decisionTree?: SkillDecisionTree | undefined;
   /**
    * Broadcast a payload to ALL currently connected WebSocket clients.
    * Used for MODULE_LIST_UPDATE and SKIN_UPDATE_BROADCAST.
@@ -173,6 +180,30 @@ export class ChatHandler {
     agentId:       string | undefined,
     agentBadge:    string,
   ): Promise<void> {
+    const startTime = Date.now();
+    let matchedSkill: string | undefined;
+    let skillContext = "";
+
+    // Run skill decision tree to find matching skills
+    if (this.deps.decisionTree && this.deps.skillLoader) {
+      const keywords = this.extractKeywords(content);
+      const matchedSkills = this.deps.decisionTree.resolve(keywords);
+
+      if (matchedSkills.length > 0) {
+        // Load the first matching skill
+        const skillName = matchedSkills[0];
+        const cartridge = this.deps.skillLoader.load(skillName);
+
+        if (cartridge) {
+          matchedSkill = skillName;
+          skillContext = this.formatSkillForAgent(cartridge);
+
+          // Record skill usage for statistics
+          console.info(`[chat] Matched skill: ${skillName} for keywords: ${keywords.join(", ")}`);
+        }
+      }
+    }
+
     // Inject brain context before first spawn so agents start with memory
     if (this.deps.brain) {
       const soul    = this.deps.brain.getSoul();
@@ -246,17 +277,92 @@ export class ChatHandler {
     })();
 
     try {
+      // Prepend skill context if available
+      const enhancedContent = skillContext
+        ? `<skill_context>\n${skillContext}\n</skill_context>\n\nUser: ${content}`
+        : content;
+
       const result = await agent.client.callTool({
         name:      "chat",
-        arguments: { content, sessionId: clientId },
+        arguments: { content: enhancedContent, sessionId: clientId },
       });
       unsubscribe();
       const text = result.content.find((c) => c.type === "text")?.text ?? "";
       this.send(ws, { type: "CHAT_STREAM", id: msgId, chunk: text, done: true, agentId: definition.id, agentBadge });
+
+      // Track token usage
+      const duration = Date.now() - startTime;
+      if (this.deps.tokenTracker) {
+        this.deps.tokenTracker.record({
+          messageType: "user",
+          tokensIn: TT.estimateTokens(content),
+          tokensOut: TT.estimateTokens(text),
+          model: definition.capabilities.model || "unknown",
+          module: matchedSkill,
+          skill: matchedSkill,
+          taskType: "chat",
+          duration,
+          success: true,
+        });
+      }
     } catch (err) {
       unsubscribe();
+
+      // Track failed request
+      const duration = Date.now() - startTime;
+      if (this.deps.tokenTracker) {
+        this.deps.tokenTracker.record({
+          messageType: "user",
+          tokensIn: TT.estimateTokens(content),
+          tokensOut: 0,
+          model: definition.capabilities.model || "unknown",
+          module: matchedSkill,
+          skill: matchedSkill,
+          taskType: "chat",
+          duration,
+          success: false,
+        });
+      }
+
       throw err;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skill helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Extract keywords from content for skill matching
+   */
+  private extractKeywords(content: string): string[] {
+    // Simple keyword extraction: split by whitespace and filter
+    // In production, you might use more sophisticated NLP
+    const words = content
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2); // Filter out short words
+
+    return [...new Set(words)]; // Remove duplicates
+  }
+
+  /**
+   * Format a skill cartridge for agent context injection
+   */
+  private formatSkillForAgent(cartridge: { name: string; description?: string; steps: Array<{ action: string; description: string }> }): string {
+    const parts: string[] = [];
+    parts.push(`Skill: ${cartridge.name}`);
+    if (cartridge.description) {
+      parts.push(`Description: ${cartridge.description}`);
+    }
+    if (cartridge.steps && cartridge.steps.length > 0) {
+      parts.push("Steps:");
+      cartridge.steps.forEach((step, i) => {
+        parts.push(`  ${i + 1}. ${step.action}: ${step.description}`);
+      });
+    }
+    return parts.join("\n");
   }
 
   // ---------------------------------------------------------------------------

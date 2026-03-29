@@ -6,9 +6,10 @@
  * loaded on-demand and evicted using LRU when limits are reached.
  */
 
-import { readFile, readdir, readFileSync } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { existsSync, readFileSync as readSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import type {
   SkillCartridge,
   LoadedSkill,

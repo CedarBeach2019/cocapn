@@ -376,6 +376,28 @@ async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerC
       }
     }
 
+    case "tree/search": {
+      const task = p.task as string | undefined;
+      if (!task) {
+        return { error: "Missing task parameter" };
+      }
+      // Return mock result for now - real implementation would run tree search
+      return {
+        success: true,
+        message: "Tree search is available. Use the tree-search handler for complex tasks.",
+        suggestion: "For complex tasks, consider using tree search to explore multiple approaches.",
+        task,
+      };
+    }
+
+    case "tree/status": {
+      return {
+        available: true,
+        active: false,
+        message: "Tree search is available for complex tasks",
+      };
+    }
+
     default:
       throw Object.assign(new Error(`Unknown bridge method: ${method}`), { code: -32601 });
   }

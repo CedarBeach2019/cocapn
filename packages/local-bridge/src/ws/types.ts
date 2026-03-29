@@ -16,6 +16,7 @@ import type { AuditLogger } from "../security/audit.js";
 import type { ChatRouter } from "./chat-router.js";
 import type { SkillLoader } from "../skills/loader.js";
 import type { SkillDecisionTree } from "../skills/decision-tree.js";
+import type { RepoGraph } from "../graph/index.js";
 
 // ─── Server options (unchanged from current contract) ────────────────────────
 
@@ -45,6 +46,8 @@ export interface BridgeServerOptions {
   skillLoader: SkillLoader | undefined;
   /** Decision tree — zero-shot skill discovery */
   decisionTree: SkillDecisionTree | undefined;
+  /** Repo graph — code structure knowledge graph */
+  repoGraph: RepoGraph | undefined;
 }
 
 // ─── Event map ───────────────────────────────────────────────────────────────

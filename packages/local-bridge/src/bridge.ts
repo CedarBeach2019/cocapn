@@ -35,6 +35,7 @@ import { Brain } from "./brain/index.js";
 import { Publisher } from "./publishing/publisher.js";
 import { SkillLoader } from "./skills/loader.js";
 import { SkillDecisionTree } from "./skills/decision-tree.js";
+import { RepoGraph } from "./graph/index.js";
 import type { BridgeConfig } from "./config/types.js";
 
 // ─── AdmiralClient (optional import — avoids hard dep on cloud-agents pkg) ────
@@ -87,6 +88,7 @@ export class Bridge {
   private publisher:     Publisher | undefined;
   private skillLoader:   SkillLoader;
   private decisionTree:  SkillDecisionTree;
+  private repoGraph:     RepoGraph;
 
   constructor(options: BridgeOptions) {
     this.options    = options;
@@ -104,7 +106,8 @@ export class Bridge {
     this.secrets   = new SecretManager(options.privateRepoRoot);
     this.sync      = new GitSync(options.privateRepoRoot, this.config);
     this.modules   = new ModuleManager(options.privateRepoRoot);
-    this.brain     = new Brain(options.privateRepoRoot, this.config, this.sync);
+    this.repoGraph = new RepoGraph(options.privateRepoRoot);
+    this.brain     = new Brain(options.privateRepoRoot, this.config, this.sync, this.repoGraph);
     this.fleetKeys = new FleetKeyManager(options.privateRepoRoot);
 
     // Initialize skill system
@@ -157,6 +160,7 @@ export class Bridge {
       brain:          this.brain,
       skillLoader:    this.skillLoader,
       decisionTree:   this.decisionTree,
+      repoGraph:      this.repoGraph,
       enablePeerApi:  true,
     });
   }
@@ -190,7 +194,7 @@ export class Bridge {
     this.watcher.start();
 
     // Register built-in skills from modules directory
-    const modulesDir = join(options.privateRepoRoot, 'cocapn', 'modules');
+    const modulesDir = join(this.options.privateRepoRoot, 'cocapn', 'modules');
     if (existsSync(modulesDir)) {
       const registered = await this.skillLoader.registerDirectory(modulesDir);
       console.info(`[bridge] Registered ${registered} skill cartridges from ${modulesDir}`);
