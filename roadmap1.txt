@@ -1,0 +1,583 @@
+# 🎯 COCAPN DEVELOPMENT PROMPT SERIES
+## Phase 1: Hardening (Security & Refactoring)
+
+---
+
+### **OPUS PROMPT #1: WebSocket Server Architecture**
+```
+You are the lead architect for cocapn. The current packages/local-bridge/src/ws/server.ts 
+is 600+ lines with mixed concerns (auth, routing, handlers).
+
+Design a refactor that separates:
+1. Authentication into src/security/auth-handler.ts (GitHub PAT + Fleet JWT)
+2. Message dispatch into src/ws/dispatcher.ts (JSON-RPC vs Typed routing)
+3. Individual handlers into src/handlers/{chat,bash,file,module}.ts
+
+Requirements:
+- Maintain backward compatibility with existing WebSocket protocol
+- Keep the typed message format (CHAT, BASH, FILE_EDIT, etc.)
+- Ensure auth middleware can be composed (check fleet JWT OR GitHub PAT)
+- Design for testability: handlers should be pure functions where possible
+
+Provide:
+1. Interface definitions for the new handler pattern
+2. Migration plan from current monolithic server.ts
+3. Which lines from current server.ts map to which new files
+
+Do NOT write implementation yet - just the architecture and interfaces.
+```
+
+### **SONNET PROMPT #1.1: Auth Handler Implementation**
+```
+Implement packages/local-bridge/src/security/auth-handler.ts based on Opus architecture.
+
+Extract auth logic from ws/server.ts lines 45-120 and 180-250.
+
+Functions to implement:
+- extractToken(url: string): string | undefined
+- validateGithubPat(token: string): Promise<string | undefined> (returns login)
+- verifyFleetJwt(token: string, fleetKey: string): { sub: string } 
+- createAuthMiddleware(options: { skipAuth?: boolean; fleetKey?: string })
+
+The middleware should return AuthContext { githubLogin?: string; githubToken?: string; authMethod: 'github' | 'fleet' | 'none' }
+
+Handle edge cases:
+- 4001 close code for auth rejection (don't auto-reconnect)
+- Missing token when auth required
+- Invalid JWT signature
+
+Write 3 unit tests using vitest in src/security/auth-handler.test.ts
+```
+
+### **SONNET PROMPT #1.2: Path Traversal Fix**
+```
+Critical security fix in packages/local-bridge/src/ws/server.ts handleFileEdit().
+
+Current vulnerable code (line ~493):
+const absPath = resolve(join(this.options.repoRoot, relPath));
+if (!absPath.startsWith(this.options.repoRoot)) { ... }
+
+Fix:
+1. Normalize relPath first: remove all .. sequences and null bytes
+2. Use path.join (not resolve) to prevent absolute path injection
+3. Verify final path starts with resolved repoRoot AFTER normalization
+
+Implementation:
+- Create src/utils/path-sanitizer.ts with sanitizeRepoPath(relPath: string, repoRoot: string): string
+- Must handle: ../../../etc/passwd, file\x00.txt, file..txt, /absolute/path
+- Throw SanitizationError with specific message for logging
+
+Update handleFileEdit to use this utility. Add test cases for each attack vector.
+```
+
+### **SONNET PROMPT #1.3: Chat Handler Extraction**
+```
+Extract handleChat() from ws/server.ts (lines 280-350) into src/handlers/chat-handler.ts.
+
+The handler is complex - it handles:
+- Module install intent parsing
+- Peer query routing (A2A)
+- Skin change commands
+- Brain context injection
+- Agent resolution and spawning
+
+Create ChatHandler class:
+constructor(deps: { router: AgentRouter; spawner: AgentSpawner; brain?: Brain; moduleManager: ModuleManager; fleetKey?: string })
+
+Methods:
+- handle(ws: WebSocket, clientId: string, msg: TypedMessage): Promise<void>
+- private parseCommand(content: string): CommandIntent
+
+Move these parsers from server.ts:
+- parseModuleInstallIntent()
+- parsePeerQueryIntent() 
+- parseSkinIntent()
+
+Ensure output callbacks still stream chunks correctly. Maintain exact same protocol messages.
+```
+
+---
+
+## Phase 2: The Viral Hook (Auto-Publication)
+
+---
+
+### **OPUS PROMPT #2: Public Digest Architecture**
+```
+Design the auto-publication system for cocapn. Users have private repos (brain) and 
+public repos (devlog). We need to automatically generate sanitized content from private 
+work for public consumption.
+
+Design:
+
+1. New module type: "publisher" in packages/modules/publisher/
+   - Hooks into git commit events
+   - Reads from Brain (tasks, wiki)
+   - Generates sanitized summaries
+   - Writes to public repo
+
+2. Sanitization strategy:
+   - Remove specific code snippets (keep descriptions)
+   - Remove secret-containing files
+   - Strip internal URLs/IPs
+   - Keep: project names, tech stack mentions, problem-solution narratives
+
+3. Content pipeline:
+   - Commit to private repo → trigger analysis
+   - Diff extraction: what changed?
+   - Summarization: local LLM call (claude-code via MCP) to generate public-safe text
+   - Commit to public repo: markdown file in updates/YYYY-MM-DD.md
+
+4. Streak tracking:
+   - Track consecutive days with commits
+   - Store in public repo stats.json
+   - Display in UI
+
+Provide:
+- Data flow diagram (ASCII art fine)
+- Interface for Sanitizer class
+- Storage format for public updates
+- Hook points in existing GitSync class
+```
+
+### **SONNET PROMPT #2.1: Sanitizer Implementation**
+```
+Implement packages/local-bridge/src/publishing/sanitizer.ts
+
+Class Sanitizer with methods:
+- sanitizeWikiPage(content: string): string
+  - Remove code blocks (```...```)
+  - Remove lines containing: password, secret, token, api_key, PRIVATE KEY
+  - Remove URLs matching: localhost, 192.168., 10., *.local
+  
+- sanitizeTask(task: Task): PublicTask
+  - Keep title, status, createdAt
+  - Truncate description to 200 chars if contains code
+  - Remove file paths that look internal (/Users/, /home/, C:\)
+
+- generateDigest(tasks: Task[], wikiPages: string[]): Digest
+  - Return structured object with:
+    - summary: string (one sentence)
+    - accomplishments: string[] (completed tasks)
+    - learnings: string[] (wiki additions)
+    - streakDay: boolean (did work today)
+
+Rules:
+- Never output raw code
+- Never output file paths containing username
+- Never output environment variables
+- Preserve: technology names, concepts, architectural decisions
+
+Write comprehensive tests with edge cases (aggressive redaction).
+```
+
+### **SONNET PROMPT #2.2: Publisher Module**
+```
+Create packages/modules/publisher/ as a first-class module.
+
+Files:
+1. module.yml (manifest):
+   - name: auto-publisher
+   - type: integration
+   - hooks: install, enable, post-commit
+
+2. src/index.ts:
+   - Hook into Bridge's git events (subscribe to 'committed' event)
+   - On commit to private repo:
+     a. Get changed files via git diff (last commit)
+     b. Read relevant wiki/tasks if modified
+     c. Call Sanitizer.generateDigest()
+     d. Write to ../../public-repo/updates/YYYY-MM-DD.md (template provided)
+     e. Commit with message: "📰 Update from [username] - [summary]"
+
+3. templates/update.md:
+   ---
+   date: {{date}}
+   streak: {{streakCount}}
+   tags: {{tags}}
+   ---
+   
+   ## Today
+   {{summary}}
+   
+   ### Shipped
+   {{#accomplishments}}
+   - {{.}}
+   {{/accomplishments}}
+
+Integration:
+- Modify GitSync to emit 'pre-commit' and 'post-commit' events
+- Publisher subscribes to these via EventEmitter
+- Handle race conditions (don't publish if commit is already from publisher)
+
+The public repo path comes from BridgeOptions.publicRepoRoot.
+```
+
+### **SONNET PROMPT #2.3: Magazine Layout UI**
+```
+Add new layout mode "magazine" to packages/ui/.
+
+Files to modify/create:
+1. src/layouts/MagazineLayout.tsx:
+   - Masonry grid using CSS columns or react-masonry-css
+   - Cards for each update (from public repo updates/*.md)
+   - Card component: date, streak badge, summary, tag chips
+   - "Live" indicator when bridge connected (green pulse dot)
+
+2. src/components/StreakBadge.tsx:
+   - Shows flame icon + number
+   - Color gradient based on streak length (yellow → orange → red)
+   - Tooltip: "5 day streak! Keep shipping!"
+
+3. Update src/App.tsx:
+   - Add 'magazine' to LayoutMode type
+   - Add route/panel for updates
+   - Fetch updates from public repo (static JSON or markdown parsing)
+
+Data flow:
+- UI reads from window.location.hostname (GitHub Pages)
+- Fetches /updates/index.json (generated by publisher)
+- Renders cards
+
+Use Tailwind for styling. Match existing skin CSS variables.
+```
+
+---
+
+## Phase 3: Network Effects (Social Features)
+
+---
+
+### **OPUS PROMPT #3: Discovery & Federation**
+```
+Design the social layer for cocapn fleet. Currently fleet is private (your devices).
+We want opt-in public discovery.
+
+Requirements:
+1. Public profiles stored in each user's public repo: cocapn/profile.json
+   - username, displayName, bio, currentFocus (from facts.json key "current-project")
+   - avatar URL (Gravatar or GitHub)
+   - domains: string[] (other cocapn instances they run)
+
+2. AdmiralDO extension (cloud-agents/src/admiral.ts):
+   - New endpoint: POST /registry/register
+     - Accepts profile.json + proof (signature from fleet key)
+     - Stores in Durable Object storage
+   - New endpoint: GET /registry/discover?query=
+     - Full-text search across registered profiles
+     - Returns paginated list
+
+3. Privacy controls:
+   - Profile only published if public_repo/cocapn/config.yml has discovery: true
+   - Users can block specific domains
+   - Facts prefixed with "private." never exported
+
+4. Cross-domain messaging:
+   - User A on makerlog.ai can ask User B on devlog.ai
+   - Routed through AdmiralDO (message queue)
+   - Or direct A2A if both online (WebRTC or HTTP)
+
+Design the trust model:
+- How do we verify identity? (GitHub OAuth + fleet key signature)
+- How do we prevent spam? (rate limiting, mutual follows only)
+- How do we handle offline messages? (AdmiralDO queue with TTL)
+
+Provide schema definitions and API specs.
+```
+
+### **SONNET PROMPT #3.1: Profile Generation**
+```
+Implement profile generation in packages/local-bridge/src/publishing/profile.ts.
+
+Class ProfileManager:
+- generateProfile(): PublicProfile
+  - Reads cocapn/config.yml for discovery: boolean
+  - Reads cocapn/soul.md for bio (first paragraph only)
+  - Reads facts.json for "display-name", "current-project", "website"
+  - Generates avatar URL from githubLogin (md5 email or github avatar)
+  
+- exportProfile(): Promise<void>
+  - Writes to publicRepo/cocapn/profile.json
+  - Signs with fleet key (creates signature field)
+  - Commits with message "Update profile"
+
+- updateCurrentFocus(focus: string): Promise<void>
+  - Updates facts.json "current-project"
+  - Triggers profile regeneration
+  - If discovery enabled, notifies Admiral via POST /registry/register
+
+Types:
+interface PublicProfile {
+  username: string;
+  displayName: string;
+  bio: string; // max 160 chars
+  currentFocus: string;
+  avatarUrl: string;
+  domains: string[];
+  signature: string; // fleet key signature
+  updatedAt: string;
+}
+
+Add to Brain class:
+- getPublicProfile(): PublicProfile
+- setCurrentFocus(focus: string): Promise<void>
+
+Tests: Ensure private facts don't leak, truncation works, signature valid.
+```
+
+### **SONNET PROMPT #3.2: Admiral Registry Endpoints**
+```
+Extend packages/cloud-agents/src/admiral.ts with registry functionality.
+
+Add to AdmiralDO:
+
+Storage keys:
+- "registry": Map<string, RegisteredProfile> (username -> profile)
+- "messages": Map<string, QueuedMessage[]> (username -> inbox)
+
+New handlers:
+
+1. POST /registry/register
+   - Body: PublicProfile (JSON)
+   - Verify signature against stored fleet key (or GitHub API)
+   - Store in registry with timestamp
+   - Return { ok: true, peers: count }
+
+2. GET /registry/discover
+   - Query param: q (search string)
+   - Search across displayName, bio, currentFocus
+   - Return { profiles: PublicProfile[] } (limit 20)
+
+3. POST /message/send
+   - Body: { to: string; from: string; content: string; signature: string }
+   - Verify from signature
+   - Store in recipient's inbox (if to exists in registry)
+   - Return { delivered: boolean; online?: boolean }
+
+4. GET /message/inbox
+   - Query: ?username=&signature=
+   - Verify signature
+   - Return queued messages, clear from storage
+
+5. WebSocket endpoint /ws/fleet
+   - For real-time presence
+   - Broadcast online status to mutual followers
+
+Add rate limiting: max 10 registers/hour per IP, max 100 messages/day per user.
+
+Write Cloudflare Worker routing logic in src/index.ts to route to AdmiralDO.
+```
+
+### **SONNET PROMPT #3.3: UI Discovery Panel**
+```
+Add discovery UI to packages/ui/src/components/DiscoveryPanel.tsx.
+
+Features:
+- Search bar for finding other makers
+- Grid of profile cards (avatar, name, current focus, "Follow" button)
+- Activity feed: "@[username] shipped [project]" (from followed users)
+
+Integration:
+- Add "Discovery" to sidebar nav (panel id: 'discovery')
+- Fetch from AdmiralDO endpoint (configured in VITE_ADMIRAL_URL)
+- Cache results in localStorage for 5 minutes
+
+ProfileCard component:
+- Shows online status indicator (green dot if recently heartbeat)
+- Click to view full profile modal with "Ask" button
+- "Ask" opens chat with prefill: "Hey @username, [cursor]"
+
+Follow system:
+- Store followed users in localStorage (client-side only for now)
+- Poll Admiral for updates from followed users every 30s
+
+Empty state: "Be the first to share your work! Enable discovery in settings."
+```
+
+---
+
+## Phase 4: Cloud-Native & Scheduling
+
+---
+
+### **OPUS PROMPT #4: Background Agent System**
+```
+Design the 24/7 background agent capability using Cloudflare Workers.
+
+Current state: CloudAdapter sends tasks to workers, but only when local bridge triggers.
+
+Desired state:
+1. Scheduled tasks: User creates task in cocapn/tasks/scheduled/check-logs.md
+   - Contains cron expression in frontmatter: `cron: "0 */6 * * *"`
+   - Contains instructions for agent
+
+2. AdmiralDO manages schedule:
+   - Parses cron expressions
+   - Triggers Cloud Worker at scheduled time
+   - Worker pulls task context from GitHub (using user's PAT)
+   - Executes, commits results back to private repo
+   - Notifies local bridge via WebSocket (if online)
+
+3. Trigger types:
+   - Cron (time-based)
+   - Webhook (GitHub issue labeled "urgent")
+   - Event (new commit to specific file)
+
+4. Security:
+   - Worker only gets encrypted secrets (age-encrypted, decrypted by worker)
+   - Worker identity verified via Cloudflare Access + fleet key
+   - Audit log of all cloud actions in cocapn/audit-cloud.log
+
+Design the cron parser, the task manifest format, and the Worker<->Admiral handshake.
+```
+
+### **SONNET PROMPT #4.1: Scheduled Task Parser**
+```
+Implement task scheduling in packages/local-bridge/src/scheduler/.
+
+Files:
+1. parser.ts:
+   - parseScheduledTask(markdown: string): ScheduledTask
+   - Extract YAML frontmatter with `cron`, `timezone`, `agent` fields
+   - Extract body as task instructions
+   
+2. validator.ts:
+   - validateCron(expression: string): boolean
+   - nextRunTime(cron: string, timezone: string): Date
+   
+3. sync.ts:
+   - scanScheduledTasks(): ScheduledTask[] (reads cocapn/tasks/scheduled/*.md)
+   - registerWithAdmiral(tasks: ScheduledTask[]): Promise<void>
+
+Types:
+interface ScheduledTask {
+  id: string; // filename without .md
+  cron: string;
+  timezone: string;
+  agent: string; // which agent to use
+  instructions: string;
+  lastRun?: string;
+  nextRun: string;
+  enabled: boolean;
+}
+
+Integration:
+- Add to Bridge.start(): scan and register tasks
+- On file change in tasks/scheduled/, re-register
+- AdmiralDO stores schedule in Durable Object alarm
+
+Write tests for cron parsing edge cases (daylight savings, invalid expressions).
+```
+
+### **SONNET PROMPT #4.2: Cloud Worker Agent**
+```
+Update packages/cloud-agents/src/worker.ts (or create if doesn't exist).
+
+The worker handles HTTP requests from AdmiralDO:
+
+Endpoints:
+1. POST /task/scheduled
+   - Body: { taskId, instructions, repoUrl, encryptedSecrets }
+   - Decrypts secrets using worker's age key (from env SECRET_KEY)
+   - Clones repo (shallow) using provided GitHub token
+   - Spawns agent process (claude-code or other via MCP)
+   - Runs instructions
+   - Captures output
+   
+2. POST /task/webhook
+   - GitHub webhook handler
+   - Validates signature (GITHUB_WEBHOOK_SECRET)
+   - Routes to appropriate task based on config
+
+3. GET /health
+   - Returns current load, queued tasks
+
+Execution:
+- Use Cloudflare Worker's waitUntil for background processing
+- Stream logs to AdmiralDO via POST /log
+- Commit results back to repo using GitHub API (create commit)
+- Handle timeouts (max 30s CPU for Workers, use Durable Objects for longer)
+
+Error handling:
+- Retry 3x with backoff
+- On failure, create issue in repo or notify via email (SendGrid integration?)
+
+Configuration via cocapn-cloud.yml in private repo.
+```
+
+---
+
+## Phase 5: Testing & Quality
+
+---
+
+### **SONNET PROMPT #5.1: Integration Tests**
+```
+Create comprehensive test suite in packages/local-bridge/tests/integration/.
+
+Test scenarios:
+1. Full flow: WebSocket connect → CHAT message → Agent spawn → Response → Disconnect
+2. Git sync: File edit → Auto-commit → Push → Verify remote
+3. Module lifecycle: Install → Enable → Disable → Remove
+4. Auth: Valid PAT, invalid PAT, expired token, fleet JWT
+5. Security: Path traversal attempts, large payload handling, rapid reconnections
+
+Setup:
+- Use vitest with testcontainers or mock-fs for file system
+- Mock GitHub API using msw (Mock Service Worker)
+- Mock child_process for agent spawning
+
+Coverage targets:
+- ws/server.ts: 80% (exclude extracted handlers once moved)
+- git/sync.ts: 90%
+- security/: 95%
+
+Write test utilities:
+- createMockBridge(): Bridge with tmp dirs
+- MockWebSocket: ws client for testing
+- git helpers: commit, push, createConflict
+
+Each test must clean up tmp directories after.
+```
+
+### **SONNET PROMPT #5.2: E2E Test Suite**
+```
+Create E2E tests in /e2e/ using Playwright.
+
+Test user journeys:
+1. Onboarding: Run create-cocapn, verify repos created, bridge starts
+2. Chat flow: Open UI, connect bridge, send message, receive response
+3. Module install: Click install button, verify submodule added
+4. File edit: Edit via UI, verify committed to git
+
+Setup:
+- GitHub Actions workflow to run E2E on PR
+- Use playwright-github-actions reporter
+- Record videos on failure
+
+Environment:
+- Start bridge in background: npm run dev in packages/local-bridge
+- Serve UI: npm run preview in packages/ui
+- Use test GitHub account with scoped PAT
+
+Page objects:
+- BridgePage: connect button, status indicator
+- ChatPage: input, send button, message list
+- ModulesPage: install button, list items
+
+Tests must be independent (clean state between).
+```
+
+---
+
+## Execution Order for Opus
+
+**Week 1**: Run prompts 1.1, 1.2, 1.3 (Hardening) in parallel after Opus #1 architecture approval  
+**Week 2**: Run prompt 5.1, 5.2 (Testing) while reviewing Week 1  
+**Week 3**: Run Opus #2 → then prompts 2.1, 2.2, 2.3 (Viral Hook)  
+**Week 4**: Run Opus #3 → then prompts 3.1, 3.2, 3.3 (Network)  
+**Week 5-6**: Run Opus #4 → then prompts 4.1, 4.2 (Cloud)  
+
+**Critical Path**: Security fixes (1.2) → Sanitizer (2.1) → Publisher (2.2) → This gives you the MVP viral feature to launch with.
+
+Acceptance criteria for each prompt: "Code compiles, tests pass, no regressions in existing functionality."
