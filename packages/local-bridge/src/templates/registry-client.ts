@@ -19,7 +19,8 @@ import {
   rmSync,
   cpSync,
 } from "fs";
-import { join, dirname, homedir } from "path";
+import { join, dirname } from "path";
+import { homedir } from "os";
 import { fileURLToPath } from "url";
 import type {
   RegistryConfig,
@@ -61,15 +62,15 @@ export const BUILTIN_TEMPLATES: readonly string[] = [
  */
 export class TemplateRegistryClient {
   private apiUrl: string;
-  private authToken?: string;
+  private authToken: string | undefined;
   private localPath: string;
   private localIndexPath: string;
   private localTemplatesPath: string;
 
   constructor(config?: RegistryConfig) {
-    this.apiUrl = config?.apiUrl || DEFAULT_API_URL;
+    this.apiUrl = config?.apiUrl ?? DEFAULT_API_URL;
     this.authToken = config?.authToken;
-    this.localPath = config?.localPath || DEFAULT_LOCAL_PATH;
+    this.localPath = config?.localPath ?? DEFAULT_LOCAL_PATH;
     this.localIndexPath = join(this.localPath, "index.json");
     this.localTemplatesPath = join(this.localPath, "templates");
     this.ensureLocalRegistry();
@@ -476,8 +477,11 @@ export class TemplateRegistryClient {
       description: meta.description,
       keywords: meta.keywords,
       author: meta.author,
-      license: meta.license,
     };
+
+    if (meta.license) {
+      manifest.license = meta.license;
+    }
 
     writeFileSync(join(targetPath, "cocapn-template.json"), JSON.stringify(manifest, null, 2));
 
@@ -533,7 +537,7 @@ export class TemplateRegistryClient {
           manifest.keywords?.some((k) => k.toLowerCase().includes(lowerQuery));
 
         if (matches) {
-          templates.push({
+          const published: PublishedTemplate = {
             name: manifest.name,
             version: manifest.version,
             description: manifest.description,
@@ -542,10 +546,19 @@ export class TemplateRegistryClient {
             downloads: 0,
             createdAt: entry.indexedAt,
             updatedAt: entry.indexedAt,
-            homepage: manifest.homepage,
-            repository: manifest.repository,
-            license: manifest.license,
-          });
+          };
+
+          if (manifest.homepage) {
+            published.homepage = manifest.homepage;
+          }
+          if (manifest.repository) {
+            published.repository = manifest.repository;
+          }
+          if (manifest.license) {
+            published.license = manifest.license;
+          }
+
+          templates.push(published);
         }
       } catch (err) {
         console.warn(`[registry] Failed to search local template: ${err}`);
@@ -580,7 +593,7 @@ export class TemplateRegistryClient {
         readFileSync(manifestPath, "utf8")
       ) as TemplatePackageManifest;
 
-      return {
+      const published: PublishedTemplate = {
         name: manifest.name,
         version: manifest.version,
         description: manifest.description,
@@ -589,10 +602,19 @@ export class TemplateRegistryClient {
         downloads: 0,
         createdAt: entry.indexedAt,
         updatedAt: entry.indexedAt,
-        homepage: manifest.homepage,
-        repository: manifest.repository,
-        license: manifest.license,
       };
+
+      if (manifest.homepage) {
+        published.homepage = manifest.homepage;
+      }
+      if (manifest.repository) {
+        published.repository = manifest.repository;
+      }
+      if (manifest.license) {
+        published.license = manifest.license;
+      }
+
+      return published;
     } catch {
       return null;
     }
@@ -816,7 +838,11 @@ You are an enterprise-focused AI assistant.
 `,
     };
 
-    return personalities[name] || personalities.bare;
+    const result = personalities[name as keyof typeof personalities];
+    if (result) {
+      return result;
+    }
+    return personalities["bare"]!;
   }
 
   /**

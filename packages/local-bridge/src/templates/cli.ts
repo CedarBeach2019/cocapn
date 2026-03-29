@@ -39,11 +39,17 @@ const format = {
  * Create registry client from environment or defaults
  */
 function createClient(): TemplateRegistryClient {
-  const config: RegistryConfig = {
-    apiUrl: process.env.COCAPN_REGISTRY_URL,
-    authToken: process.env.COCAPN_REGISTRY_TOKEN,
-    localPath: process.env.COCAPN_REGISTRY_PATH,
-  };
+  const config: RegistryConfig = {};
+
+  if (process.env.COCAPN_REGISTRY_URL) {
+    config.apiUrl = process.env.COCAPN_REGISTRY_URL;
+  }
+  if (process.env.COCAPN_REGISTRY_TOKEN) {
+    config.authToken = process.env.COCAPN_REGISTRY_TOKEN;
+  }
+  if (process.env.COCAPN_REGISTRY_PATH) {
+    config.localPath = process.env.COCAPN_REGISTRY_PATH;
+  }
 
   return new TemplateRegistryClient(config);
 }
