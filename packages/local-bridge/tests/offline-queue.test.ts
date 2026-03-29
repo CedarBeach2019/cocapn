@@ -132,6 +132,7 @@ describe('OfflineQueue', () => {
     });
 
     it('should remove operation after max attempts', async () => {
+      const queue = new OfflineQueue(tempDir, { baseRetryDelay: 0 });
       const executor = vi.fn().mockRejectedValue(new Error('Failed'));
 
       const id = queue.add({

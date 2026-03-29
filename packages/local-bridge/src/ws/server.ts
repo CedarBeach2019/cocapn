@@ -46,7 +46,7 @@ import { handleModuleInstall } from "../handlers/module.js";
 import { handleChangeSkin } from "../handlers/skin.js";
 import { handleHttpPeerRequest } from "../handlers/peer.js";
 import { HealthChecker, checkGit, checkBrain, checkDisk, checkWebSocket, type SystemHealthStatus } from "../health/index.js";
-import { createOfflineQueue, type OfflineQueue } from "../cloud-bridge/offline-queue.js";
+import { createOfflineQueue, OfflineQueue } from "../cloud-bridge/offline-queue.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
