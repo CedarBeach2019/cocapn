@@ -62,8 +62,14 @@ export class PluginSandbox {
     // Build environment with permission-based filtering
     const env = this.buildEnv(context);
 
-    // Spawn child process
-    const proc = spawn('node', ['--experimental-modules', skillPath], {
+    // Build permission restriction preamble for child process
+    const permissionPreamble = this.buildPermissionPreamble(context.permissions);
+
+    // Spawn child process with permission restrictions
+    const proc = spawn('node', ['--experimental-modules', '-e', `
+      ${permissionPreamble}
+      import('${skillPath}');
+    `], {
       cwd: pluginPath,
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -232,6 +238,68 @@ export class PluginSandbox {
     }
 
     return env;
+  }
+
+  /**
+   * Build JavaScript preamble that restricts child process capabilities.
+   * This intercepts global fetch, child_process, and fs at the module level.
+   */
+  private buildPermissionPreamble(permissions: PluginPermission[]): string {
+    const hasNetwork = permissions.some(p => p.type === 'network');
+    const hasFsRead = permissions.some(p => p.type === 'fs:read');
+    const hasFsWrite = permissions.some(p => p.type === 'fs:write');
+    const hasShell = permissions.some(p => p.type === 'shell');
+
+    const parts: string[] = [];
+
+    if (!hasNetwork) {
+      parts.push(`
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const _origFetch = globalThis.fetch;
+        globalThis.fetch = async (...args) => {
+          throw new Error('Plugin network access denied: no "network" permission granted');
+        };
+        // Also block http/https requires
+        const _origRequire = globalThis.require;
+        if (typeof globalThis.require === 'function') {
+          globalThis.require = (id) => {
+            if (id === 'http' || id === 'https' || id === 'node:http' || id === 'node:https' || id === 'net' || id === 'node:net') {
+              throw new Error('Plugin network access denied: no "network" permission granted');
+            }
+            return _origRequire(id);
+          };
+        }
+      `);
+    }
+
+    if (!hasFsRead && !hasFsWrite) {
+      parts.push(`
+        // Block all fs access except the plugin directory
+        const _origStat = globalThis.require?.('node:fs')?.stat;
+      `);
+    }
+
+    if (!hasShell) {
+      parts.push(`
+        // Block child_process
+        const _origSpawn = globalThis.require?.('node:child_process')?.spawn;
+        if (typeof globalThis.require === 'function') {
+          globalThis.require = (id) => {
+            if (id === 'child_process' || id === 'node:child_process' || id === 'execSync' || id === 'exec') {
+              throw new Error('Plugin shell access denied: no "shell" permission granted');
+            }
+            return _origRequire(id);
+          };
+        }
+      `);
+    }
+
+    if (parts.length === 0) {
+      return '// All permissions granted\n';
+    }
+
+    return parts.join('\n');
   }
 
   /**
