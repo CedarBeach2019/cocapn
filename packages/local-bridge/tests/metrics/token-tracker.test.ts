@@ -197,11 +197,13 @@ describe("TokenTracker", () => {
         in: 100,
         out: 200,
         total: 300,
+        count: 1,
       });
       expect(stats.tokensByModule["search-module"]).toEqual({
         in: 150,
         out: 250,
         total: 400,
+        count: 1,
       });
     });
 
@@ -211,6 +213,7 @@ describe("TokenTracker", () => {
         in: 100,
         out: 200,
         total: 300,
+        count: 1,
       });
     });
 
@@ -220,16 +223,19 @@ describe("TokenTracker", () => {
         in: 100,
         out: 200,
         total: 300,
+        count: 1,
       });
       expect(stats.tokensByTask["search"]).toEqual({
         in: 150,
         out: 250,
         total: 400,
+        count: 1,
       });
       expect(stats.tokensByTask["code_edit"]).toEqual({
         in: 50,
         out: 100,
         total: 150,
+        count: 1,
       });
     });
 
@@ -350,8 +356,8 @@ describe("TokenTracker", () => {
 
   describe("findWaste", () => {
     beforeEach(() => {
-      // Efficient module
-      for (let i = 0; i < 10; i++) {
+      // Add many efficient modules to bring down the overall average
+      for (let i = 0; i < 50; i++) {
         tracker.record({
           messageType: "user",
           tokensIn: 10,
@@ -364,12 +370,12 @@ describe("TokenTracker", () => {
         });
       }
 
-      // Wasteful module (uses 5x more tokens)
+      // Wasteful module (uses 10x more tokens)
       for (let i = 0; i < 10; i++) {
         tracker.record({
           messageType: "user",
-          tokensIn: 50,
-          tokensOut: 100,
+          tokensIn: 100,
+          tokensOut: 200,
           model: "claude-3-5-sonnet-20241022",
           module: "wasteful-module",
           taskType: "search",
@@ -378,12 +384,12 @@ describe("TokenTracker", () => {
         });
       }
 
-      // Wasteful skill
+      // Wasteful skill (uses 12x more tokens)
       for (let i = 0; i < 10; i++) {
         tracker.record({
           messageType: "user",
-          tokensIn: 60,
-          tokensOut: 120,
+          tokensIn: 120,
+          tokensOut: 240,
           model: "claude-3-5-sonnet-20241022",
           skill: "wasteful-skill",
           taskType: "code_edit",
@@ -493,6 +499,7 @@ describe("TokenTracker", () => {
         in: 100,
         out: 200,
         total: 300,
+        count: 1,
       });
     });
 

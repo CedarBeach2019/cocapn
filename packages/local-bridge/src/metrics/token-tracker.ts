@@ -46,9 +46,9 @@ export interface TokenStats {
   avgTokensPerTask: number;
   tasksCompleted: number;
   tasksFailed: number;
-  tokensByModule: Record<string, { in: number; out: number; total: number }>;
-  tokensBySkill: Record<string, { in: number; out: number; total: number }>;
-  tokensByTask: Record<string, { in: number; out: number; total: number }>;
+  tokensByModule: Record<string, { in: number; out: number; total: number; count: number }>;
+  tokensBySkill: Record<string, { in: number; out: number; total: number; count: number }>;
+  tokensByTask: Record<string, { in: number; out: number; total: number; count: number }>;
   efficiency: number; // successful_tokens / total_tokens
   topWasters: Array<{ name: string; tokens: number; waste: number; type: "module" | "skill" }>;
   period: { start: string; end: string };
@@ -350,7 +350,7 @@ export class TokenTracker {
 
     // Analyze modules
     for (const [module, data] of Object.entries(stats.tokensByModule)) {
-      const avgTokens = data.total / (stats.tasksCompleted + stats.tasksFailed);
+      const avgTokens = data.total / data.count; // Average per task for this module
       const overallAvg = stats.avgTokensPerTask;
 
       if (avgTokens > overallAvg * 2 && data.total > 1000) {
@@ -358,7 +358,7 @@ export class TokenTracker {
           module,
           skill: "",
           avgTokens,
-          tasksAnalyzed: stats.tasksCompleted + stats.tasksFailed,
+          tasksAnalyzed: data.count,
           suggestions: this.generateWasteSuggestions(module, avgTokens, overallAvg),
         });
       }
@@ -366,7 +366,7 @@ export class TokenTracker {
 
     // Analyze skills
     for (const [skill, data] of Object.entries(stats.tokensBySkill)) {
-      const avgTokens = data.total / (stats.tasksCompleted + stats.tasksFailed);
+      const avgTokens = data.total / data.count; // Average per task for this skill
       const overallAvg = stats.avgTokensPerTask;
 
       if (avgTokens > overallAvg * 2 && data.total > 1000) {
@@ -374,7 +374,7 @@ export class TokenTracker {
           module: "",
           skill,
           avgTokens,
-          tasksAnalyzed: stats.tasksCompleted + stats.tasksFailed,
+          tasksAnalyzed: data.count,
           suggestions: this.generateWasteSuggestions(skill, avgTokens, overallAvg),
         });
       }
@@ -406,32 +406,33 @@ export class TokenTracker {
   private groupBy(
     records: TokenRecord[],
     field: "module" | "skill" | "taskType"
-  ): Record<string, { in: number; out: number; total: number }> {
-    const result: Record<string, { in: number; out: number; total: number }> = {};
+  ): Record<string, { in: number; out: number; total: number; count: number }> {
+    const result: Record<string, { in: number; out: number; total: number; count: number }> = {};
 
     for (const record of records) {
       const key = record[field] || "unknown";
       if (!result[key]) {
-        result[key] = { in: 0, out: 0, total: 0 };
+        result[key] = { in: 0, out: 0, total: 0, count: 0 };
       }
       result[key].in += record.tokensIn;
       result[key].out += record.tokensOut;
       result[key].total += record.tokensIn + record.tokensOut;
+      result[key].count += 1;
     }
 
     return result;
   }
 
   private findTopWasters(
-    byModule: Record<string, { in: number; out: number; total: number }>,
-    bySkill: Record<string, { in: number; out: number; total: number }>,
+    byModule: Record<string, { in: number; out: number; total: number; count: number }>,
+    bySkill: Record<string, { in: number; out: number; total: number; count: number }>,
     avgTokens: number
   ): Array<{ name: string; tokens: number; waste: number; type: "module" | "skill" }> {
     const wasters: Array<{ name: string; tokens: number; waste: number; type: "module" | "skill" }> = [];
 
     for (const [name, data] of Object.entries(byModule)) {
       if (data.total > 1000) {
-        const expected = avgTokens * (data.total / avgTokens);
+        const expected = avgTokens * data.count;
         const waste = data.total - expected;
         if (waste > 0) {
           wasters.push({ name, tokens: data.total, waste, type: "module" });
@@ -441,7 +442,7 @@ export class TokenTracker {
 
     for (const [name, data] of Object.entries(bySkill)) {
       if (data.total > 1000) {
-        const expected = avgTokens * (data.total / avgTokens);
+        const expected = avgTokens * data.count;
         const waste = data.total - expected;
         if (waste > 0) {
           wasters.push({ name, tokens: data.total, waste, type: "skill" });
