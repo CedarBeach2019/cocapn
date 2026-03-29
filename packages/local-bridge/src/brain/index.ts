@@ -285,6 +285,41 @@ export class Brain {
   }
 
   /**
+   * List all wiki pages (file + title). Does not include content.
+   */
+  listWikiPages(): WikiPage[] {
+    const wikiDir = join(this.repoRoot, "cocapn", "wiki");
+    if (!existsSync(wikiDir)) return [];
+
+    const pages: WikiPage[] = [];
+    for (const file of this.walkMarkdown(wikiDir, "")) {
+      const fullPath = join(wikiDir, file);
+      try {
+        const content = readFileSync(fullPath, "utf8");
+        const title = extractTitle(content) ?? basename(file, extname(file));
+        pages.push({ file, title, excerpt: content.slice(0, 100) });
+      } catch {
+        continue;
+      }
+    }
+    return pages;
+  }
+
+  /**
+   * Read the raw content of a wiki page by relative filename.
+   * Returns null if the file doesn't exist.
+   */
+  readWikiPage(file: string): string | null {
+    const fullPath = join(this.repoRoot, "cocapn", "wiki", file);
+    if (!existsSync(fullPath)) return null;
+    try {
+      return readFileSync(fullPath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Add a new wiki page from a local file path.
    * Copies the file into cocapn/wiki/ and auto-commits.
    * Also stores embedding if vector search is available.

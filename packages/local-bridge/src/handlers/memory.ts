@@ -575,6 +575,87 @@ export async function handleMemoryDeleteTyped(
   }));
 }
 
+/**
+ * Handle WIKI_LIST typed message — returns all wiki pages (file + title).
+ */
+export async function handleWikiListTyped(
+  ws: WebSocket,
+  clientId: string,
+  msg: TypedMessage,
+  ctx: HandlerContext,
+): Promise<void> {
+  if (!ctx.brain) {
+    ws.send(JSON.stringify({ type: "WIKI_LIST_ERROR", id: msg.id, error: "Brain not available" }));
+    return;
+  }
+
+  const pages = ctx.brain.listWikiPages();
+
+  ws.send(JSON.stringify({
+    type: "WIKI_LIST",
+    id: msg.id,
+    pages: pages.map(p => ({ file: p.file, title: p.title })),
+    count: pages.length,
+  }));
+}
+
+/**
+ * Handle WIKI_READ typed message — returns content of a specific wiki page.
+ */
+export async function handleWikiReadTyped(
+  ws: WebSocket,
+  clientId: string,
+  msg: TypedMessage,
+  ctx: HandlerContext,
+): Promise<void> {
+  if (!ctx.brain) {
+    ws.send(JSON.stringify({ type: "WIKI_READ_ERROR", id: msg.id, error: "Brain not available" }));
+    return;
+  }
+
+  const file = msg["file"] as string | undefined;
+  if (!file) {
+    ws.send(JSON.stringify({ type: "WIKI_READ_ERROR", id: msg.id, error: "Missing file parameter" }));
+    return;
+  }
+
+  const content = ctx.brain.readWikiPage(file);
+  if (content === null) {
+    ws.send(JSON.stringify({ type: "WIKI_READ_ERROR", id: msg.id, error: `Wiki page not found: ${file}` }));
+    return;
+  }
+
+  ws.send(JSON.stringify({
+    type: "WIKI_READ",
+    id: msg.id,
+    file,
+    content,
+  }));
+}
+
+/**
+ * Handle SOUL_GET typed message — returns the soul.md personality text.
+ */
+export async function handleSoulGetTyped(
+  ws: WebSocket,
+  clientId: string,
+  msg: TypedMessage,
+  ctx: HandlerContext,
+): Promise<void> {
+  if (!ctx.brain) {
+    ws.send(JSON.stringify({ type: "SOUL_GET_ERROR", id: msg.id, error: "Brain not available" }));
+    return;
+  }
+
+  const soul = ctx.brain.getSoul();
+
+  ws.send(JSON.stringify({
+    type: "SOUL_GET",
+    id: msg.id,
+    content: soul,
+  }));
+}
+
 // ─── Serializer Helper ────────────────────────────────────────────────────────
 
 function serializeMemory(mem: MemoryEntry): Record<string, unknown> {

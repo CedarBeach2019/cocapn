@@ -20,6 +20,7 @@
       --user-bdr: rgba(108,140,255,0.3);
       --success:  #4ade80;
       --danger:   #f87171;
+      --warn:     #facc15;
       --radius:   8px;
       --font:     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       --mono:     'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
@@ -29,7 +30,6 @@
 
     /* Layout */
     #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
-    #app.connected { grid-template-columns: 1fr 280px; }
 
     /* Header */
     header {
@@ -50,7 +50,7 @@
       background: var(--border);
     }
     .status .dot.on { background: var(--success); }
-    .status .dot.warn { background: #facc15; animation: pulse 1.5s infinite; }
+    .status .dot.warn { background: var(--warn); animation: pulse 1.5s infinite; }
 
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
@@ -60,6 +60,18 @@
       cursor: pointer; transition: all 0.15s;
     }
     .btn:hover { color: var(--text); border-color: var(--primary); background: var(--primary2); }
+
+    .btn-icon {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      width: 32px; height: 32px; border-radius: var(--radius);
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .btn-icon:hover { color: var(--text); border-color: var(--primary); background: var(--primary2); }
+    .btn-icon.active { color: var(--primary); border-color: var(--primary); background: var(--primary2); }
+
+    .btn-icon svg { width: 16px; height: 16px; }
 
     /* Body */
     .body { display: flex; flex: 1; overflow: hidden; }
@@ -150,35 +162,176 @@
 
     .send-btn svg { width: 16px; height: 16px; }
 
-    /* Sidebar — Memory */
+    /* Sidebar — Memory Browser */
     .sidebar {
-      width: 280px; border-left: 1px solid var(--border);
-      display: none; flex-direction: column; overflow-y: auto;
+      width: 300px; border-left: 1px solid var(--border);
+      display: none; flex-direction: column; overflow: hidden;
       background: var(--surface);
     }
 
-    .sidebar h3 {
-      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
-      color: var(--muted); padding: 12px 14px 6px;
-      font-weight: 500;
+    .sidebar-tabs {
+      display: flex; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
-    .fact-item {
-      padding: 6px 14px; font-size: 13px; color: var(--text);
-      border-bottom: 1px solid rgba(42,53,85,0.5);
+    .sidebar-tab {
+      flex: 1; padding: 10px 0; text-align: center;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted); cursor: pointer; border: none;
+      background: none; transition: all 0.15s;
+      border-bottom: 2px solid transparent;
+      font-family: var(--font); font-weight: 500;
     }
-    .fact-item .key { color: var(--primary); font-family: var(--mono); font-size: 11px; }
-    .fact-item .val { color: var(--text); margin-top: 1px; }
+    .sidebar-tab:hover { color: var(--text); }
+    .sidebar-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
+    .sidebar-content {
+      flex: 1; overflow-y: auto; padding: 0;
+    }
+
+    .tab-panel { display: none; height: 100%; flex-direction: column; }
+    .tab-panel.active { display: flex; }
+
+    /* Facts Tab */
+    .fact-add {
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 6px; flex-shrink: 0;
+    }
+    .fact-add input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      padding: 6px 10px; font-size: 12px; font-family: var(--font);
+      outline: none; transition: border-color 0.15s;
+    }
+    .fact-add input:focus { border-color: var(--primary); }
+    .fact-add input::placeholder { color: var(--muted); }
+    .fact-add .fact-key { flex: 1; min-width: 0; }
+    .fact-add .fact-val { flex: 1.2; min-width: 0; }
+    .fact-add button {
+      width: 28px; height: 28px; border-radius: var(--radius);
+      border: 1px solid var(--primary); background: var(--primary2);
+      color: var(--primary); cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 600; transition: all 0.15s;
+    }
+    .fact-add button:hover { background: var(--primary); color: #fff; }
+
+    .facts-list {
+      flex: 1; overflow-y: auto; padding: 4px 0;
+    }
+
+    .fact-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 12px; margin: 3px 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; font-size: 12px;
+      transition: border-color 0.15s;
+    }
+    .fact-chip:hover { border-color: rgba(108,140,255,0.3); }
+    .fact-chip .chip-key {
+      color: var(--primary); font-family: var(--mono); font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px;
+    }
+    .fact-chip .chip-sep { color: var(--muted); flex-shrink: 0; }
+    .fact-chip .chip-val {
+      color: var(--text); flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .fact-chip .chip-del {
+      width: 18px; height: 18px; border: none; background: none;
+      color: var(--muted); cursor: pointer; flex-shrink: 0;
+      border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; transition: all 0.15s; opacity: 0;
+    }
+    .fact-chip:hover .chip-del { opacity: 1; }
+    .fact-chip .chip-del:hover { color: var(--danger); background: rgba(248,113,113,0.12); }
+
+    /* Wiki Tab */
+    .wiki-search {
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .wiki-search input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      padding: 6px 10px; font-size: 12px; font-family: var(--font);
+      outline: none; transition: border-color 0.15s;
+    }
+    .wiki-search input:focus { border-color: var(--primary); }
+    .wiki-search input::placeholder { color: var(--muted); }
+
+    .wiki-list {
+      flex: 1; overflow-y: auto; padding: 4px 0;
+    }
+
+    .wiki-item {
+      padding: 8px 12px; margin: 2px 8px;
+      border-radius: 6px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .wiki-item:hover { background: var(--surface2); }
+    .wiki-item .wiki-title {
+      font-size: 13px; font-weight: 500; color: var(--text);
+    }
+    .wiki-item .wiki-file {
+      font-size: 11px; color: var(--muted); font-family: var(--mono);
+      margin-top: 1px;
+    }
+
+    .wiki-content {
+      display: none; flex-direction: column; flex: 1;
+      overflow-y: auto;
+    }
+    .wiki-content.active { display: flex; }
+    .wiki-content-back {
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .wiki-content-back button {
+      background: none; border: none; color: var(--primary);
+      cursor: pointer; font-size: 12px; font-family: var(--font);
+      padding: 2px 0; display: flex; align-items: center; gap: 4px;
+    }
+    .wiki-content-back button:hover { text-decoration: underline; }
+    .wiki-content-body {
+      padding: 12px; font-size: 13px; line-height: 1.7;
+      white-space: pre-wrap; word-break: break-word;
+      color: var(--text);
+    }
+    .wiki-content-body h1, .wiki-content-body h2, .wiki-content-body h3 {
+      color: var(--primary); margin: 12px 0 6px;
+    }
+    .wiki-content-body h1:first-child { margin-top: 0; }
+    .wiki-content-body code {
+      font-family: var(--mono); font-size: 12px;
+      background: rgba(0,0,0,0.3); padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* Soul Tab */
+    .soul-content {
+      flex: 1; overflow-y: auto; padding: 12px;
+      font-size: 13px; line-height: 1.7;
+      white-space: pre-wrap; word-break: break-word;
+      color: var(--text);
+    }
+    .soul-content h1, .soul-content h2, .soul-content h3 {
+      color: var(--primary); margin: 12px 0 6px;
+    }
+    .soul-content code {
+      font-family: var(--mono); font-size: 12px;
+      background: rgba(0,0,0,0.3); padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* Shared sidebar empty */
     .sidebar-empty {
-      padding: 14px; color: var(--muted); font-size: 12px;
-      font-style: italic;
+      padding: 20px 14px; color: var(--muted); font-size: 12px;
+      font-style: italic; text-align: center;
     }
 
-    /* Mobile toggle */
-    .sidebar-toggle {
-      display: none;
-    }
+    /* Mobile toggle (hides brain btn on desktop, shows on mobile) */
+    .sidebar-toggle-mobile { display: none; }
 
     /* Code blocks */
     .bubble code {
@@ -196,15 +349,15 @@
     /* Responsive */
     @media (min-width: 768px) {
       .sidebar.open { display: flex; }
-      .sidebar-toggle { display: none; }
+      .sidebar-toggle-mobile { display: none !important; }
     }
     @media (max-width: 767px) {
       .sidebar.open {
         display: flex; position: fixed; top: 44px; right: 0; bottom: 0;
-        z-index: 10; width: 260px;
+        z-index: 10; width: 280px;
         box-shadow: -4px 0 20px rgba(0,0,0,0.5);
       }
-      .sidebar-toggle { display: block; }
+      .sidebar-toggle-mobile { display: block; }
       .msg { max-width: 90%; }
     }
 
@@ -221,7 +374,16 @@
     <header>
       <span class="logo">cocapn</span>
       <span class="spacer"></span>
-      <button class="btn sidebar-toggle" id="sidebarToggle" title="Memory">Memory</button>
+      <button class="btn-icon sidebar-toggle-mobile" id="sidebarToggleMobile" title="Memory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.746 0-1.452.2-2.003.557l-1.334-1.334a5 5 0 0 1 0-7.072z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="brainToggle" title="Memory Browser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.746 0-1.452.2-2.003.557l-1.334-1.334a5 5 0 0 1 0-7.072z"/>
+        </svg>
+      </button>
       <button class="btn" id="newSession">New Session</button>
       <div class="status">
         <span class="dot" id="statusDot"></span>
@@ -251,11 +413,50 @@
         </div>
       </div>
 
-      <!-- Memory Sidebar -->
+      <!-- Memory Browser Sidebar -->
       <div class="sidebar" id="sidebar">
-        <h3>Memory</h3>
-        <div id="memoryList">
-          <div class="sidebar-empty">Connect to see agent memory</div>
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" data-tab="facts">Facts</button>
+          <button class="sidebar-tab" data-tab="wiki">Wiki</button>
+          <button class="sidebar-tab" data-tab="soul">Soul</button>
+        </div>
+        <div class="sidebar-content">
+          <!-- Facts Panel -->
+          <div class="tab-panel active" id="panel-facts">
+            <div class="fact-add">
+              <input class="fact-key" id="factKeyInput" placeholder="key" />
+              <input class="fact-val" id="factValInput" placeholder="value" />
+              <button id="factAddBtn" title="Add fact">+</button>
+            </div>
+            <div class="facts-list" id="factsList">
+              <div class="sidebar-empty">Connect to see agent memory</div>
+            </div>
+          </div>
+
+          <!-- Wiki Panel -->
+          <div class="tab-panel" id="panel-wiki">
+            <div class="wiki-list-wrapper" id="wikiListWrapper">
+              <div class="wiki-search">
+                <input id="wikiSearchInput" placeholder="Search wiki pages..." />
+              </div>
+              <div class="wiki-list" id="wikiList">
+                <div class="sidebar-empty">Connect to see wiki</div>
+              </div>
+            </div>
+            <div class="wiki-content" id="wikiContent">
+              <div class="wiki-content-back">
+                <button id="wikiBackBtn">&larr; Back to wiki list</button>
+              </div>
+              <div class="wiki-content-body" id="wikiContentBody"></div>
+            </div>
+          </div>
+
+          <!-- Soul Panel -->
+          <div class="tab-panel" id="panel-soul">
+            <div class="soul-content" id="soulContent">
+              <div class="sidebar-empty">Connect to see agent soul</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -269,21 +470,37 @@
     let reconnectTimer = null;
     let streamingId = null;
     const facts = new Map();
+    let wikiPages = [];
+    let activeWikiFile = null;
+    let activeTab = 'facts';
+    let sidebarOpen = window.innerWidth >= 768;
 
     // ─── DOM refs ───────────────────────────────────────────────────────────────
-    const $messages     = document.getElementById('messages');
-    const $emptyState   = document.getElementById('emptyState');
-    const $input        = document.getElementById('input');
-    const $sendBtn      = document.getElementById('sendBtn');
-    const $statusDot    = document.getElementById('statusDot');
-    const $statusText   = document.getElementById('statusText');
-    const $newSession   = document.getElementById('newSession');
-    const $sidebar      = document.getElementById('sidebar');
-    const $sidebarToggle= document.getElementById('sidebarToggle');
-    const $memoryList   = document.getElementById('memoryList');
+    const $messages      = document.getElementById('messages');
+    const $emptyState    = document.getElementById('emptyState');
+    const $input         = document.getElementById('input');
+    const $sendBtn       = document.getElementById('sendBtn');
+    const $statusDot     = document.getElementById('statusDot');
+    const $statusText    = document.getElementById('statusText');
+    const $newSession    = document.getElementById('newSession');
+    const $sidebar       = document.getElementById('sidebar');
+    const $brainToggle   = document.getElementById('brainToggle');
+    const $sidebarMobile = document.getElementById('sidebarToggleMobile');
+    const $factsList     = document.getElementById('factsList');
+    const $factKeyInput  = document.getElementById('factKeyInput');
+    const $factValInput  = document.getElementById('factValInput');
+    const $factAddBtn    = document.getElementById('factAddBtn');
+    const $wikiList      = document.getElementById('wikiList');
+    const $wikiListWrapper = document.getElementById('wikiListWrapper');
+    const $wikiSearchInput = document.getElementById('wikiSearchInput');
+    const $wikiContent   = document.getElementById('wikiContent');
+    const $wikiContentBody = document.getElementById('wikiContentBody');
+    const $wikiBackBtn   = document.getElementById('wikiBackBtn');
+    const $soulContent   = document.getElementById('soulContent');
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
     function nextId() { return 'msg-' + (++msgSeq); }
+    function rpcId() { return 'rpc-' + Date.now() + '-' + (++msgSeq); }
 
     function escapeHtml(s) {
       const d = document.createElement('div');
@@ -292,12 +509,26 @@
     }
 
     function formatText(text) {
-      // Basic markdown: code blocks, inline code
       let html = escapeHtml(text);
-      // Code blocks: ```...```
       html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-      // Inline code: `...`
       html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      return html;
+    }
+
+    function formatMarkdown(text) {
+      let html = escapeHtml(text);
+      // Headings
+      html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      // Code blocks
+      html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // Bold
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Italic
+      html = html.replace(/[^*]\*([^*]+)\*/g, ' <em>$1</em>');
       return html;
     }
 
@@ -309,6 +540,42 @@
     function setStatus(state, text) {
       $statusDot.className = 'dot' + (state === 'on' ? ' on' : state === 'warn' ? ' warn' : '');
       $statusText.textContent = text;
+    }
+
+    // ─── Sidebar Toggle ───────────────────────────────────────────────────────
+    function toggleSidebar() {
+      sidebarOpen = !sidebarOpen;
+      $sidebar.classList.toggle('open', sidebarOpen);
+      $brainToggle.classList.toggle('active', sidebarOpen);
+      if (sidebarOpen) fetchAll();
+    }
+
+    function openSidebar() {
+      sidebarOpen = true;
+      $sidebar.classList.add('open');
+      $brainToggle.classList.add('active');
+      fetchAll();
+    }
+
+    function closeSidebar() {
+      sidebarOpen = false;
+      $sidebar.classList.remove('open');
+      $brainToggle.classList.remove('active');
+    }
+
+    // ─── Tab Switching ────────────────────────────────────────────────────────
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.sidebar-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+      });
+      document.querySelectorAll('.tab-panel').forEach(p => {
+        p.classList.toggle('active', p.id === 'panel-' + tab);
+      });
+      // Reset wiki view when switching to wiki tab
+      if (tab === 'wiki') {
+        showWikiList();
+      }
     }
 
     // ─── Messages ──────────────────────────────────────────────────────────────
@@ -337,7 +604,6 @@
       const last = msgs[msgs.length - 1];
       if (!last) return addMessage('agent', chunk);
       const bubble = last.querySelector('.bubble');
-      // Remove typing indicator if present
       const typing = bubble.querySelector('.typing');
       if (typing) typing.remove();
       bubble.innerHTML += formatText(chunk);
@@ -375,22 +641,121 @@
       $input.focus();
     }
 
-    // ─── Memory / Facts ────────────────────────────────────────────────────────
+    // ─── Facts ─────────────────────────────────────────────────────────────────
     function renderFacts() {
       if (facts.size === 0) {
-        $memoryList.innerHTML = '<div class="sidebar-empty">No facts stored yet</div>';
+        $factsList.innerHTML = '<div class="sidebar-empty">No facts stored yet</div>';
         return;
       }
       let html = '';
       for (const [key, val] of facts) {
-        html += '<div class="fact-item"><div class="key">' + escapeHtml(key) + '</div><div class="val">' + escapeHtml(String(val)) + '</div></div>';
+        html += '<div class="fact-chip">'
+          + '<span class="chip-key" title="' + escapeHtml(key) + '">' + escapeHtml(key) + '</span>'
+          + '<span class="chip-sep">:</span>'
+          + '<span class="chip-val" title="' + escapeHtml(String(val)) + '">' + escapeHtml(String(val)) + '</span>'
+          + '<button class="chip-del" data-key="' + escapeHtml(key) + '" title="Delete">&times;</button>'
+          + '</div>';
       }
-      $memoryList.innerHTML = html;
+      $factsList.innerHTML = html;
+
+      // Bind delete buttons
+      $factsList.querySelectorAll('.chip-del').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteFact(btn.dataset.key);
+        });
+      });
     }
 
     function fetchFacts() {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ jsonrpc: '2.0', id: 'facts-' + Date.now(), method: 'brain/facts', params: {} }));
+      ws.send(JSON.stringify({ type: 'MEMORY_LIST', id: rpcId() }));
+    }
+
+    function addFact(key, value) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'MEMORY_ADD', id: rpcId(), key, value }));
+    }
+
+    function deleteFact(key) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'MEMORY_DELETE', id: rpcId(), key }));
+    }
+
+    // ─── Wiki ──────────────────────────────────────────────────────────────────
+    function renderWikiList(filter) {
+      if (wikiPages.length === 0) {
+        $wikiList.innerHTML = '<div class="sidebar-empty">No wiki pages yet</div>';
+        return;
+      }
+      const q = (filter || '').toLowerCase().trim();
+      const filtered = q
+        ? wikiPages.filter(p => p.title.toLowerCase().includes(q) || p.file.toLowerCase().includes(q))
+        : wikiPages;
+
+      if (filtered.length === 0) {
+        $wikiList.innerHTML = '<div class="sidebar-empty">No matching pages</div>';
+        return;
+      }
+
+      let html = '';
+      for (const page of filtered) {
+        html += '<div class="wiki-item" data-file="' + escapeHtml(page.file) + '">'
+          + '<div class="wiki-title">' + escapeHtml(page.title) + '</div>'
+          + '<div class="wiki-file">' + escapeHtml(page.file) + '</div>'
+          + '</div>';
+      }
+      $wikiList.innerHTML = html;
+
+      $wikiList.querySelectorAll('.wiki-item').forEach(item => {
+        item.addEventListener('click', () => {
+          readWikiPage(item.dataset.file);
+        });
+      });
+    }
+
+    function showWikiList() {
+      $wikiListWrapper.style.display = '';
+      $wikiContent.classList.remove('active');
+      activeWikiFile = null;
+    }
+
+    function showWikiContent(file, content) {
+      activeWikiFile = file;
+      $wikiListWrapper.style.display = 'none';
+      $wikiContent.classList.add('active');
+      $wikiContentBody.innerHTML = formatMarkdown(content);
+    }
+
+    function fetchWikiPages() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'WIKI_LIST', id: rpcId() }));
+    }
+
+    function readWikiPage(file) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'WIKI_READ', id: rpcId(), file }));
+    }
+
+    // ─── Soul ──────────────────────────────────────────────────────────────────
+    function renderSoul(content) {
+      if (!content) {
+        $soulContent.innerHTML = '<div class="sidebar-empty">No soul.md found</div>';
+        return;
+      }
+      $soulContent.innerHTML = formatMarkdown(content);
+    }
+
+    function fetchSoul() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'SOUL_GET', id: rpcId() }));
+    }
+
+    // ─── Fetch All ─────────────────────────────────────────────────────────────
+    function fetchAll() {
+      fetchFacts();
+      fetchWikiPages();
+      fetchSoul();
     }
 
     // ─── WebSocket ─────────────────────────────────────────────────────────────
@@ -406,7 +771,7 @@
 
       ws.onopen = () => {
         setStatus('on', 'Connected to cocapn');
-        fetchFacts();
+        if (sidebarOpen) fetchAll();
       };
 
       ws.onclose = () => {
@@ -415,17 +780,64 @@
         scheduleReconnect();
       };
 
-      ws.onerror = () => {
-        // onclose fires after this
-      };
+      ws.onerror = () => {};
 
       ws.onmessage = (event) => {
         let data;
         try { data = JSON.parse(event.data); } catch { return; }
 
-        // JSON-RPC response
+        // ── Typed message responses ──────────────────────────────────────────
+
+        // MEMORY_LIST response
+        if (data.type === 'MEMORY_LIST' && Array.isArray(data.facts)) {
+          facts.clear();
+          for (const f of data.facts) {
+            if (f && f.key) facts.set(f.key, f.value ?? '');
+          }
+          renderFacts();
+          return;
+        }
+
+        // MEMORY_ADD response (confirm)
+        if (data.type === 'MEMORY_ADD' && data.ok) {
+          facts.set(data.key, data.value);
+          renderFacts();
+          // Clear inputs
+          $factKeyInput.value = '';
+          $factValInput.value = '';
+          $factKeyInput.focus();
+          return;
+        }
+
+        // MEMORY_DELETE response (confirm)
+        if (data.type === 'MEMORY_DELETE' && data.ok) {
+          facts.delete(data.key);
+          renderFacts();
+          return;
+        }
+
+        // WIKI_LIST response
+        if (data.type === 'WIKI_LIST' && Array.isArray(data.pages)) {
+          wikiPages = data.pages;
+          renderWikiList($wikiSearchInput.value);
+          return;
+        }
+
+        // WIKI_READ response
+        if (data.type === 'WIKI_READ' && data.content !== undefined) {
+          showWikiContent(data.file, data.content);
+          return;
+        }
+
+        // SOUL_GET response
+        if (data.type === 'SOUL_GET' && data.content !== undefined) {
+          renderSoul(data.content);
+          return;
+        }
+
+        // ── JSON-RPC responses ───────────────────────────────────────────────
         if (data.jsonrpc === '2.0' && data.result !== undefined) {
-          // Brain facts response
+          // Brain facts response (legacy RPC path)
           if (data.id && String(data.id).startsWith('facts-') && Array.isArray(data.result)) {
             facts.clear();
             for (const f of data.result) {
@@ -443,14 +855,12 @@
           return;
         }
 
-        // Typed message protocol — CHAT_STREAM
+        // ── Typed message protocol — CHAT_STREAM ─────────────────────────────
         if (data.type === 'CHAT_STREAM') {
           if (data.id && !data.done && !streamingId) {
-            // First chunk — create agent bubble if needed
             const existing = $messages.querySelector('.msg[data-id="' + data.id + '"]');
             if (!existing) {
               addMessage('agent', data.chunk, data.agentId);
-              // Set data-id on the last added msg
               const msgs = $messages.querySelectorAll('.msg.agent');
               msgs[msgs.length - 1].dataset.id = data.id;
             } else {
@@ -468,7 +878,7 @@
           return;
         }
 
-        // Fact remembered event
+        // ── Events ──────────────────────────────────────────────────────────
         if (data.type === 'fact.remembered' || data.type === 'FACT_UPDATE') {
           if (data.fact && data.fact.key) {
             facts.set(data.fact.key, data.fact.value ?? '');
@@ -493,10 +903,8 @@
       $input.style.height = 'auto';
       $sendBtn.disabled = true;
 
-      // Add user message
       addMessage('user', text);
 
-      // Create placeholder agent bubble + typing indicator
       if ($emptyState) $emptyState.style.display = 'none';
       streamingId = nextId();
       const agentDiv = document.createElement('div');
@@ -508,7 +916,6 @@
 
       $input.disabled = true;
 
-      // Send via typed message protocol (matches ChatPanel behavior)
       ws.send(JSON.stringify({
         type: 'CHAT',
         id: streamingId,
@@ -535,7 +942,6 @@
     // ─── Event listeners ───────────────────────────────────────────────────────
     $input.addEventListener('input', () => {
       $sendBtn.disabled = !$input.value.trim();
-      // Auto-resize
       $input.style.height = 'auto';
       $input.style.height = Math.min($input.scrollHeight, 140) + 'px';
     });
@@ -550,14 +956,50 @@
     $sendBtn.addEventListener('click', send);
     $newSession.addEventListener('click', newSession);
 
-    $sidebarToggle.addEventListener('click', () => {
-      $sidebar.classList.toggle('open');
-      if ($sidebar.classList.contains('open')) fetchFacts();
+    // Brain toggle (desktop)
+    $brainToggle.addEventListener('click', toggleSidebar);
+
+    // Sidebar toggle (mobile)
+    $sidebarMobile.addEventListener('click', toggleSidebar);
+
+    // Tab switching
+    document.querySelectorAll('.sidebar-tab').forEach(tab => {
+      tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
+
+    // Fact add
+    function handleAddFact() {
+      const key = $factKeyInput.value.trim();
+      const val = $factValInput.value.trim();
+      if (!key || !val) return;
+      addFact(key, val);
+    }
+
+    $factAddBtn.addEventListener('click', handleAddFact);
+    $factValInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddFact();
+      }
+    });
+    $factKeyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $factValInput.focus();
+      }
+    });
+
+    // Wiki search
+    $wikiSearchInput.addEventListener('input', () => {
+      renderWikiList($wikiSearchInput.value);
+    });
+
+    // Wiki back button
+    $wikiBackBtn.addEventListener('click', showWikiList);
 
     // Auto-open sidebar on desktop
     if (window.innerWidth >= 768) {
-      $sidebar.classList.add('open');
+      openSidebar();
     }
 
     // ─── Init ──────────────────────────────────────────────────────────────────
