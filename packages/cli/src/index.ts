@@ -5,6 +5,8 @@
  *   cocapn init [dir]           — Initialize cocapn in a repo
  *   cocapn start                — Start the bridge
  *   cocapn status               — Show bridge status
+ *   cocapn deploy               — Deploy to Cloudflare Workers
+ *   cocapn rollback             — Rollback deployment
  *   cocapn skill list           — List available skills
  *   cocapn template search <q>  — Search template registry
  *   cocapn tree <task>          — Start tree search
@@ -18,6 +20,8 @@ import { Command } from "commander";
 import { createInitCommand } from "./commands/init.js";
 import { createStartCommand } from "./commands/start.js";
 import { createStatusCommand } from "./commands/status.js";
+import { createDeployCommand } from "./commands/deploy.js";
+import { createRollbackCommand } from "./commands/rollback.js";
 import { createSkillsCommand } from "./commands/skills.js";
 import { createTemplateCommand } from "./commands/templates.js";
 import { createTreeCommand } from "./commands/tree.js";
@@ -39,6 +43,10 @@ export function createCLI(): Command {
   program.addCommand(createInitCommand());
   program.addCommand(createStartCommand());
   program.addCommand(createStatusCommand());
+
+  // Deploy commands
+  program.addCommand(createDeployCommand());
+  program.addCommand(createRollbackCommand());
 
   // Skill commands
   program.addCommand(createSkillsCommand());
