@@ -22,6 +22,9 @@ import type { ModuleManager } from "../modules/manager.js";
 import type { AuditLogger } from "../security/audit.js";
 import type { ChatRouter } from "../ws/chat-router.js";
 import type { Sender } from "../ws/send.js";
+import type { TokenTracker } from "../metrics/token-tracker.js";
+import type { SkillLoader } from "../skills/loader.js";
+import type { SkillDecisionTree } from "../skills/decision-tree.js";
 
 /**
  * Everything a handler needs to do its job.
@@ -41,6 +44,9 @@ export interface HandlerContext {
   readonly brain: Brain | undefined;
   readonly cloudAdapters: CloudAdapterRegistry | undefined;
   readonly fleetKey: string | undefined;
+  readonly tokenTracker: TokenTracker | undefined;
+  readonly skillLoader: SkillLoader | undefined;
+  readonly decisionTree: SkillDecisionTree | undefined;
 
   // Mutable — lazily created
   getModuleManager(): ModuleManager;

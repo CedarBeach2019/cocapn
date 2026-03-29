@@ -47,6 +47,7 @@ import { handleChangeSkin } from "../handlers/skin.js";
 import { handleHttpPeerRequest } from "../handlers/peer.js";
 import { HealthChecker, checkGit, checkBrain, checkDisk, checkWebSocket, type SystemHealthStatus } from "../health/index.js";
 import { createOfflineQueue, OfflineQueue } from "../cloud-bridge/offline-queue.js";
+import { TokenTracker } from "../metrics/token-tracker.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -74,6 +75,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
   private handlerRegistry: HandlerRegistry;
   private healthChecker: HealthChecker;
   private offlineQueue:  OfflineQueue;
+  private tokenTracker:  TokenTracker;
   private healthInterval?: ReturnType<typeof setInterval>;
 
   constructor(options: BridgeServerOptions) {
@@ -92,6 +94,9 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     this.offlineQueue.load().catch((err) => {
       console.error('[bridge] Failed to load offline queue:', err);
     });
+
+    // Initialize TokenTracker
+    this.tokenTracker = new TokenTracker({ maxRecords: 10000 });
 
     // Build HandlerContext with all services
     this.handlerCtx = this.buildHandlerContext();
@@ -160,6 +165,9 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       brain: this.options.brain,
       cloudAdapters: this.options.cloudAdapters,
       fleetKey: this.options.fleetKey,
+      tokenTracker: this.tokenTracker,
+      skillLoader: this.options.skillLoader,
+      decisionTree: this.options.decisionTree,
       getModuleManager: () => {
         if (!moduleManagerRef.current) {
           moduleManagerRef.current = new ModuleManager(this.options.repoRoot);
@@ -440,5 +448,37 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
    */
   getOfflineQueueStats(): ReturnType<OfflineQueue['getStats']> {
     return this.offlineQueue.getStats();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token Tracker API
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the TokenTracker instance
+   */
+  getTokenTracker(): TokenTracker {
+    return this.tokenTracker;
+  }
+
+  /**
+   * Get token statistics for a time period
+   */
+  async getTokenStats(since?: Date, until?: Date): Promise<ReturnType<TokenTracker['getStats']>> {
+    return this.tokenTracker.getStats(since, until);
+  }
+
+  /**
+   * Get efficiency trend over time
+   */
+  async getTokenEfficiency(buckets: number = 24): Promise<ReturnType<TokenTracker['getEfficiencyTrend']>> {
+    return this.tokenTracker.getEfficiencyTrend(buckets);
+  }
+
+  /**
+   * Find and report token waste
+   */
+  async findTokenWaste(): Promise<ReturnType<TokenTracker['findWaste']>> {
+    return this.tokenTracker.findWaste();
   }
 }

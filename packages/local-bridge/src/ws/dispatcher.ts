@@ -119,7 +119,7 @@ async function dispatchRpc(
   const { method, params, id } = req;
 
   if (method.startsWith("bridge/")) {
-    const result = await handleBridgeMethod(method, ctx);
+    const result = await handleBridgeMethod(method, params, ctx);
     ctx.sender.result(ws, id, result);
     return;
   }
@@ -145,7 +145,9 @@ async function dispatchRpc(
   ctx.sender.error(ws, id, -32601, `Method not found: ${method}`);
 }
 
-async function handleBridgeMethod(method: string, ctx: HandlerContext): Promise<unknown> {
+async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerContext): Promise<unknown> {
+  const p = (params ?? {}) as Record<string, unknown>;
+
   switch (method) {
     case "bridge/status":
       return getBridgeStatus(ctx);
@@ -165,6 +167,136 @@ async function handleBridgeMethod(method: string, ctx: HandlerContext): Promise<
     case "bridge/sync":
       await ctx.sync.commit("[cocapn] manual sync");
       return { ok: true };
+
+    case "bridge/tokenStats": {
+      if (!ctx.tokenTracker) {
+        return { error: "Token tracker not available" };
+      }
+      const since = p.since ? new Date(p.since as string) : undefined;
+      const until = p.until ? new Date(p.until as string) : undefined;
+      return ctx.tokenTracker.getStats(since, until);
+    }
+
+    case "bridge/tokenEfficiency": {
+      if (!ctx.tokenTracker) {
+        return { error: "Token tracker not available" };
+      }
+      const buckets = typeof p.buckets === "number" ? p.buckets : 24;
+      return ctx.tokenTracker.getEfficiencyTrend(buckets);
+    }
+
+    case "bridge/tokenWaste": {
+      if (!ctx.tokenTracker) {
+        return { error: "Token tracker not available" };
+      }
+      return ctx.tokenTracker.findWaste();
+    }
+
+    case "skill/list": {
+      if (!ctx.skillLoader) {
+        return { error: "Skill loader not available" };
+      }
+      const skills = ctx.skillLoader.getAll();
+      const stats = ctx.skillLoader.stats();
+      return {
+        skills: skills.map(s => ({
+          name: s.name,
+          version: s.version,
+          description: s.description,
+          triggers: s.triggers,
+          category: s.category,
+          hot: s.hot || false,
+          tokenBudget: s.tokenBudget || 500,
+        })),
+        stats: {
+          total: stats.total,
+          loaded: stats.loaded,
+          hot: stats.hot,
+          cold: stats.cold,
+          memoryBytes: stats.memoryBytes,
+        },
+      };
+    }
+
+    case "skill/load": {
+      if (!ctx.skillLoader) {
+        return { error: "Skill loader not available" };
+      }
+      const name = p.name as string | undefined;
+      if (!name) {
+        return { error: "Missing skill name" };
+      }
+      const cartridge = ctx.skillLoader.load(name);
+      if (!cartridge) {
+        return { error: `Skill not found: ${name}` };
+      }
+      return {
+        loaded: true,
+        skill: {
+          name: cartridge.name,
+          version: cartridge.version,
+          description: cartridge.description,
+          triggers: cartridge.triggers,
+          category: cartridge.category,
+        },
+      };
+    }
+
+    case "skill/unload": {
+      if (!ctx.skillLoader) {
+        return { error: "Skill loader not available" };
+      }
+      const name = p.name as string | undefined;
+      if (!name) {
+        return { error: "Missing skill name" };
+      }
+      const unloaded = ctx.skillLoader.unload(name);
+      return { unloaded, skill: name };
+    }
+
+    case "skill/match": {
+      if (!ctx.skillLoader || !ctx.decisionTree) {
+        return { error: "Skill system not available" };
+      }
+      const keywords = p.keywords as string[] | undefined;
+      if (!keywords) {
+        return { error: "Missing keywords" };
+      }
+      const treeMatches = ctx.decisionTree.resolve(keywords);
+      const intentMatches = ctx.skillLoader.loadByIntent(keywords);
+      return {
+        matches: [...treeMatches, ...intentMatches.map(s => s.name)],
+        skills: intentMatches,
+      };
+    }
+
+    case "skill/context": {
+      if (!ctx.skillLoader) {
+        return { error: "Skill loader not available" };
+      }
+      const maxTokens = typeof p.maxTokens === "number" ? p.maxTokens : undefined;
+      const context = ctx.skillLoader.buildSkillContext(maxTokens);
+      return context;
+    }
+
+    case "skill/stats": {
+      if (!ctx.skillLoader) {
+        return { error: "Skill loader not available" };
+      }
+      const stats = ctx.skillLoader.stats();
+      const loaded = ctx.skillLoader.getLoaded();
+      return {
+        stats: {
+          ...stats,
+          loaded: loaded.map(s => ({
+            name: s.name,
+            useCount: s.useCount,
+            lastUsedAt: s.lastUsedAt,
+            tokenBudget: s.cartridge.tokenBudget || 500,
+          })),
+        },
+      };
+    }
 
     default:
       throw Object.assign(new Error(`Unknown bridge method: ${method}`), { code: -32601 });

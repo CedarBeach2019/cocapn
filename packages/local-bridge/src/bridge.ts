@@ -13,7 +13,7 @@
  *   - Optional Cloudflare tunnel via cloudflared
  */
 
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import { parse as parseYaml } from "yaml";
 import { loadConfig } from "./config/loader.js";
@@ -33,6 +33,8 @@ import { ModuleManager } from "./modules/manager.js";
 import { FleetKeyManager } from "./security/fleet.js";
 import { Brain } from "./brain/index.js";
 import { Publisher } from "./publishing/publisher.js";
+import { SkillLoader } from "./skills/loader.js";
+import { SkillDecisionTree } from "./skills/decision-tree.js";
 import type { BridgeConfig } from "./config/types.js";
 
 // ─── AdmiralClient (optional import — avoids hard dep on cloud-agents pkg) ────
@@ -83,6 +85,8 @@ export class Bridge {
   private fleetKey:      string | undefined;
   private brain:         Brain;
   private publisher:     Publisher | undefined;
+  private skillLoader:   SkillLoader;
+  private decisionTree:  SkillDecisionTree;
 
   constructor(options: BridgeOptions) {
     this.options    = options;
@@ -102,6 +106,14 @@ export class Bridge {
     this.modules   = new ModuleManager(options.privateRepoRoot);
     this.brain     = new Brain(options.privateRepoRoot, this.config, this.sync);
     this.fleetKeys = new FleetKeyManager(options.privateRepoRoot);
+
+    // Initialize skill system
+    this.skillLoader = new SkillLoader({
+      maxColdSkills: 20,
+      maxMemoryBytes: 50 * 1024,
+      skillPaths: [join(options.privateRepoRoot, 'cocapn', 'modules')],
+    });
+    this.decisionTree = new SkillDecisionTree();
 
     this.watcher = new RepoWatcher(
       [options.privateRepoRoot],
@@ -143,6 +155,8 @@ export class Bridge {
       moduleManager:  this.modules,
       fleetKey:       this.fleetKey,
       brain:          this.brain,
+      skillLoader:    this.skillLoader,
+      decisionTree:   this.decisionTree,
       enablePeerApi:  true,
     });
   }
@@ -174,6 +188,18 @@ export class Bridge {
     await this.sync.pull();
     this.sync.startTimers();
     this.watcher.start();
+
+    // Register built-in skills from modules directory
+    const modulesDir = join(options.privateRepoRoot, 'cocapn', 'modules');
+    if (existsSync(modulesDir)) {
+      const registered = await this.skillLoader.registerDirectory(modulesDir);
+      console.info(`[bridge] Registered ${registered} skill cartridges from ${modulesDir}`);
+
+      // Rebuild decision tree with registered skills
+      const allSkills = this.skillLoader.getAll();
+      this.decisionTree.rebuild(allSkills);
+    }
+
     this.server.start();
 
     // ── auto-publisher integration ───────────────────────────────────────────

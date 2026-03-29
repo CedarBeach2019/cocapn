@@ -14,6 +14,8 @@ import type { Brain } from "../brain/index.js";
 import type { ModuleManager } from "../modules/manager.js";
 import type { AuditLogger } from "../security/audit.js";
 import type { ChatRouter } from "./chat-router.js";
+import type { SkillLoader } from "../skills/loader.js";
+import type { SkillDecisionTree } from "../skills/decision-tree.js";
 
 // ─── Server options (unchanged from current contract) ────────────────────────
 
@@ -39,6 +41,10 @@ export interface BridgeServerOptions {
    * Disabled by default to avoid port conflicts in tests.
    */
   enablePeerApi?: boolean;
+  /** Skill loader — manages skill cartridges */
+  skillLoader: SkillLoader | undefined;
+  /** Decision tree — zero-shot skill discovery */
+  decisionTree: SkillDecisionTree | undefined;
 }
 
 // ─── Event map ───────────────────────────────────────────────────────────────
