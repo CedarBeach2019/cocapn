@@ -287,7 +287,7 @@ describe('Built-in Health Checks', () => {
 
       expect(result.name).toBe('cloud');
       expect(result.status).toBe('warn');
-      expect(result.message).toContain('not configured');
+      expect(result.message).toContain('Cloud worker not configured');
     });
 
     it('should return error when worker unavailable', async () => {

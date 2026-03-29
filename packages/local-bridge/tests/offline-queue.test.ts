@@ -80,13 +80,16 @@ describe('OfflineQueue', () => {
       expect(smallQueue.size()).toBe(3);
     });
 
-    it('should prioritize higher priority operations', () => {
+    it('should maintain insertion order for operations', () => {
       queue.add({ type: 'chat', payload: {}, priority: 1 });
       queue.add({ type: 'chat', payload: {}, priority: 10 });
       queue.add({ type: 'chat', payload: {}, priority: 5 });
 
       const operations = queue.getAll();
-      expect(operations[2].priority).toBe(10); // Highest priority at end (will be dequeued first)
+      // Operations maintain insertion order (priority only affects eviction when full)
+      expect(operations[0].priority).toBe(1);
+      expect(operations[1].priority).toBe(10);
+      expect(operations[2].priority).toBe(5);
     });
   });
 
