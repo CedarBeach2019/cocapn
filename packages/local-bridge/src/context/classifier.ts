@@ -122,8 +122,8 @@ export class TaskComplexityClassifier {
       // Keep at trivial or simple level, don't bump from these
       if (level === 'moderate') {
         level = 'simple';
-        reason = 'Pure question, no action required';
       }
+      reason = 'Pure question, no action required';
     }
 
     // Map complexity to context budget and estimate tokens
