@@ -1,203 +1,356 @@
-# Cocapn
+<div align="center">
 
-> Your data is in Git. You own it completely.
+# 🤖 Cocapn
 
-Cocapn is a **repo-first hybrid agent OS** — a local WebSocket bridge that runs Claude Code, Pi, and other CLI agents on your machine, backed by an encrypted private Git repository, with an optional Cloudflare edge tier for 24/7 background tasks.
+### *The npm of AI Agents*
 
-## Architecture Overview
+**An open-source agent runtime that self-assembles, learns, and deploys in 60 seconds**
 
-```mermaid
-graph TB
-    subgraph "Client Layer"
-        Browser["Browser (your.domain.ai)"]
-        Browser -->|"WebSocket ws://localhost:8787<br/>or Cloudflare tunnel wss://..."| Bridge
-    end
+[![npm version](https://badge.fury.io/js/cocapn.svg)](https://www.npmjs.com/package/cocapn)
+[![Tests](https://img.shields.io/badge/tests-104%20files-success)](https://github.com/superinstance/cocapn)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/by-Superinstance-purple)](https://superinstance.com)
 
-    subgraph "Bridge Layer"
-        Bridge["Local Bridge (cocapn-bridge)"]
-        Spawner["Agent Spawner"]
-        Router["Agent Router"]
-        Publisher["Git Publisher"]
-        Sync["Git Sync"]
-    end
+---
 
-    subgraph "Agent Layer"
-        Agent1["Claude Code Agent"]
-        Agent2["Custom Agent"]
-        Agent3["MCP Tools"]
-    end
+</div>
 
-    subgraph "Memory Layer"
-        Brain["Private Git Repo (encrypted brain)"]
-        Facts["facts.json"]
-        Wiki["wiki/"]
-        Tasks["tasks/"]
-        Secrets["secrets/*.age"]
-    end
+## 🚀 Quick Start
 
-    subgraph "Cloud Layer"
-        Cloudflare["Cloudflare Workers"]
-        AdmiralDO["AdmiralDO<br/>(Task Queue)"]
-        Registry["Registry"]
-    end
+Get your AI agent up and running in three commands:
 
-    Bridge --> Spawner
-    Bridge --> Router
-    Bridge --> Publisher
-    Bridge --> Sync
+```bash
+# 1. Create your agent
+npm create cocapn@latest my-agent
 
-    Spawner --> Agent1
-    Spawner --> Agent2
-    Spawner --> Agent3
+# 2. Configure it
+cd my-agent
+cocapn init --template makerlog
 
-    Router --> Agent1
-    Router --> Agent2
-
-    Publisher --> Brain
-    Sync --> Brain
-
-    Agent1 --> Facts
-    Agent2 --> Wiki
-    Agent3 --> Tasks
-    Bridge --> Secrets
-
-    Bridge -->|"optional"| Cloudflare
-    Cloudflare --> AdmiralDO
-    Cloudflare --> Registry
+# 3. Deploy it
+cocapn deploy
 ```
 
-## How Updates Become Social: The Viral Loop
+**That's it!** Your agent is now live at `your-domain.cocapn.app` or your own custom domain.
 
-Cocapn transforms personal updates into social content through a seamless workflow:
+---
 
-1. **You interact with your agent** — Chat, write notes, or complete tasks in your private UI
-2. **Agent commits to Git** — Every action is auto-committed to your private repo
-3. **Publisher detects changes** — New commits trigger the publisher
-4. **Selective publishing** — Public content (wiki entries, blog posts) is pushed to your public repo
-5. **GitHub Pages deploys** — Your public repo is automatically served at `your.domain.ai`
-6. **Fleet discovers updates** — Other Cocapn instances can discover and follow your content
-7. **Social engagement** — Others can comment, reference, or build on your published content
+## ✨ Features
 
-**Privacy by design:**
+### 🧠 **Git-Backed Memory**
+- All agent knowledge stored in Git repositories
+- Full version control of your agent's "brain"
 - `private.*` facts never leave your private repo
-- Secrets are age-encrypted and never transmitted
-- You control exactly what gets published
+- Age-encrypted secrets management
 
-## Philosophy
+### 🔌 **Plugin System**
+- Hot & cold skill execution
+- Permissions-based sandbox
+- npm-based plugin distribution
+- Built-in skill registry
 
-- **Git is the database.** Every agent action, wiki entry, and task is a commit. You can `git log` your brain.
-- **Local-first.** The bridge runs on your machine. No cloud required — Cloudflare is opt-in for background tasks.
-- **You own the keys.** Secrets are age-encrypted in your private repo. The bridge never sends plaintext secrets anywhere.
-- **Domain-branded.** Your instance lives at `you.makerlog.ai`, `you.studylog.ai`, or your own domain — served from your GitHub Pages.
+### 🌐 **Fleet Protocol**
+- Multi-agent coordination via A2A
+- Fleet JWT for secure communication
+- Message routing & heartbeats
+- Distributed task execution
 
-## Themed Domains
+### 🎨 **7 Built-in Templates**
+| Template | Perfect For | Personality |
+|----------|-------------|-------------|
+| `bare` | Custom setups | Minimalist |
+| `businesslog` | Enterprise | Professional |
+| `cloud-worker` | Cloudflare deployments | Serverless-first |
+| `dmlog` | TTRPG campaigns | Dungeon Master |
+| `makerlog` | Developers | Builder-focused |
+| `studylog` | Education | Research-oriented |
+| `web-app` | Full-stack apps | Production-ready |
 
-Cocapn supports 11 themed domains, each with curated templates and personality:
+### 🔄 **MCP Integration**
+- Connect to external MCP servers
+- Use their tools seamlessly
+- Stdio & SSE transport support
+- Auto-discovery of available tools
 
-| Domain | Focus | Onboarding |
-|--------|-------|------------|
-| **personallog.ai** | Generic personal assistant | Simplest |
-| **businesslog.ai** | Professional/enterprise | Docker defaults, enterprise add-ons |
-| **makerlog.ai** | Developers & manufacturers | Dev templates |
-| **studylog.ai** | Education & research | Education templates |
-| **dmlog.ai** | TTRPG | Game console UI |
-| **activelog.ai** | Health & fitness | Fitness tracking |
-| **activeledger.ai** | Finance & crypto | Finance tools |
-| **fishinglog.ai** | Commercial & recreational fishing | Commercial vs recreational fork |
-| **playerlog.ai** | Video gamers | Gaming focus |
-| **reallog.ai** | Journalists & documentarians | Media tools |
-| **Custom domain** | Your brand | Full customization |
+### 📊 **Analytics**
+- Event tracking (`agent.invoked`, `tool.used`, etc.)
+- Metrics aggregation
+- Export to JSON, CSV, Prometheus
+- Fleet optimization insights
 
-**All features are installable on any domain.** Templates are curated starting points with personality, prompts, and default modules pre-configured.
+### 🎣 **Webhook System**
+- GitHub, Slack, Discord handlers
+- HMAC signature verification
+- Retry logic with exponential backoff
+- Event filtering & routing
 
-## Quickstart
+### ☁️ **Cloudflare Workers**
+- Optional cloud tier for 24/7 background tasks
+- AdmiralDO for task queue & registry
+- Auth service with JWT
+- Rate limiting & session management
 
-### Prerequisites
+---
 
-- Node.js 20+
-- Git
-- A GitHub account (for repo creation and PAT auth)
-- `age` CLI (`brew install age` or `apt install age`) — for secret management
+## 🏗️ Architecture
 
-### Install and init
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   Browser    │  │   CLI UI     │  │  WebSocket   │          │
+│  │  (your.ai)   │  │  (cocapn)    │  │   Client     │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+└─────────┼──────────────────┼──────────────────┼────────────────┘
+          │                  │                  │
+          ▼                  ▼                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        BRIDGE LAYER                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   Router     │  │   Spawner    │  │   Plugins    │          │
+│  │  (messages)  │  │  (agents)    │  │  (skills)    │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+│         │                  │                  │                  │
+│  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────┴───────┐          │
+│  │    Brain     │  │   Modules    │  │  Scheduler   │          │
+│  │  (memory)    │  │ (extensions) │  │   (cron)     │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+└─────────┼──────────────────┼──────────────────┼────────────────┘
+          │                  │                  │
+          ▼                  ▼                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        STORAGE LAYER                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Private Repo │  │  Public Repo │  │   Secrets    │          │
+│  │  (brain)     │  │ (published)  │  │ (.age files) │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+          │
+          ▼ (optional)
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLOUD LAYER                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Cloudflare   │  │  AdmiralDO   │  │     Auth     │          │
+│  │   Workers    │  │ (Durable Obj)│  │   (JWT)      │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-Run a single command — it will ask for your GitHub PAT, create and clone both repos, generate an age keypair, and print your subdomain URL.
+---
+
+## 🔌 Plugin System
+
+Create and publish plugins to extend cocapn functionality:
+
+### Plugin Structure
+
+```json
+// cocapn-plugin.json
+{
+  "name": "cocapn-plugin-example",
+  "version": "1.0.0",
+  "description": "Example plugin",
+  "author": "Your Name",
+  "skills": [
+    {
+      "name": "my-skill",
+      "entry": "skills/my-skill.js",
+      "type": "hot",
+      "triggers": ["do something"],
+      "description": "Does something useful"
+    }
+  ],
+  "permissions": [
+    "network:api.example.com",
+    "fs:read:~/documents",
+    "shell:ls"
+  ]
+}
+```
+
+### Permission Types
+
+| Permission | Description |
+|------------|-------------|
+| `network:HOST` | Access specific host (or `*` for wildcard) |
+| `fs:read:PATH` | Read files under path |
+| `fs:write:PATH` | Write files under path |
+| `shell:COMMAND` | Execute specific shell command |
+| `env:VAR_NAME` | Read environment variable |
+| `admin` | Bridge administration |
+
+### Publishing
 
 ```bash
-npx create-cocapn my-makerlog --domain makerlog
+# Publish to npm
+npm publish
+
+# Install in cocapn
+cocapn plugin install cocapn-plugin-example
 ```
+
+---
+
+## 🌐 Fleet Protocol
+
+Multi-agent coordination via A2A (Agent-to-Agent) protocol:
+
+### Features
+
+- **Fleet JWT** — Signed identity tokens for inter-bridge communication
+- **Message routing** — Direct or via AdmiralDO registry
+- **Heartbeats** — Keep-alive and presence detection
+- **Task distribution** — Distribute work across fleet members
+
+### Configuration
+
+```yaml
+# cocapn.yml
+fleet:
+  enabled: true
+  jwtSecret: "secret:FLEET_JWT_SECRET"
+  peers:
+    - id: "agent-1"
+      url: "https://agent-1.example.com"
+    - id: "agent-2"
+      url: "https://agent-2.example.com"
+```
+
+### Usage
 
 ```bash
-# Or for a custom domain:
-npx create-cocapn my-log --domain studylog
+# Send message to fleet
+cocapn fleet send --to agent-1 --message "Hello, fleet!"
 
-# After setup, start the bridge manually:
-cocapn-bridge --repo ./my-makerlog-brain
+# Check fleet status
+cocapn fleet status
+
+# Distribute task
+cocapn fleet distribute --task "process-data"
 ```
 
-## Repository Structure
+---
 
-```
-cocapn/
-├── packages/
-│   ├── local-bridge/   # WebSocket server, agent spawner, Git sync
-│   ├── ui/             # React SPA (domain-skinned)
-│   ├── protocols/      # Shared MCP + A2A implementations
-│   └── cloud-agents/   # Optional Cloudflare Workers
-├── templates/
-│   ├── public/         # Template for your public GitHub repo
-│   └── private/        # Template for your private encrypted repo
-├── modules/            # Reference extension modules
-│   ├── habit-tracker/
-│   ├── perplexity-search/
-│   └── zotero-bridge/
-└── docs/               # Documentation site
-```
+## 📋 CLI Reference
 
-## Modules
+### Core Commands
 
-Extend Cocapn with git-submodule-based modules:
+| Command | Description |
+|---------|-------------|
+| `cocapn init` | Initialize a new cocapn project |
+| `cocapn start` | Start the local bridge |
+| `cocapn deploy` | Deploy to Cloudflare Workers |
+| `cocapn status` | Show bridge and agent status |
+| `cocapn stop` | Stop the running bridge |
+
+### Plugin Commands
+
+| Command | Description |
+|---------|-------------|
+| `cocapn plugin install` | Install a plugin from npm |
+| `cocapn plugin list` | List installed plugins |
+| `cocapn plugin remove` | Remove an installed plugin |
+| `cocapn plugin search` | Search the plugin registry |
+
+### Skill Commands
+
+| Command | Description |
+|---------|-------------|
+| `cocapn skills list` | List available skills |
+| `cocapn skills run` | Run a specific skill |
+| `cocapn skills create` | Create a new skill |
+
+### Module Commands
+
+| Command | Description |
+|---------|-------------|
+| `cocapn module add` | Add a module from git |
+| `cocapn module list` | List installed modules |
+| `cocapn module remove` | Remove a module |
+
+### Template Commands
+
+| Command | Description |
+|---------|-------------|
+| `cocapn templates list` | List available templates |
+| `cocapn templates install` | Install a template |
+
+### Fleet Commands
+
+| Command | Description |
+|---------|-------------|
+| `cocapn fleet send` | Send message to fleet |
+| `cocapn fleet status` | Check fleet status |
+| `cocapn fleet distribute` | Distribute task across fleet |
+
+---
+
+## 📚 Documentation
+
+Full documentation available at [docs.cocapn.app](https://docs.cocapn.app)
+
+- **Getting Started** — Installation and setup
+- **Architecture** — Deep dive into system design
+- **Plugins** — Create and publish plugins
+- **Templates** — Using and customizing templates
+- **API Reference** — Complete API documentation
+- **Fleet Protocol** — Multi-agent coordination
+- **Contributing** — How to contribute
+
+---
+
+## 🧪 Testing
 
 ```bash
-# Add a module
-cocapn-bridge module add https://github.com/cocapn/habit-tracker
+# Run all tests
+npm test
 
-# List installed modules
-cocapn-bridge module list
+# Run specific package tests
+cd packages/local-bridge
+npx vitest run
 
-# Or from a chat message: "install habit-tracker"
+# Run E2E tests
+cd e2e
+npx playwright test
+
+# Type check
+npm run type-check
 ```
 
-Module types: `skin` (CSS themes), `agent` (new AI agents), `tool` (MCP servers), `integration` (webhooks/sync).
+**Test Coverage:** 104 test files across packages
 
-## Security
+---
 
-```bash
-# Initialize age keypair
-cocapn-bridge secret init
+## 🤝 Contributing
 
-# Add an encrypted secret
-cocapn-bridge secret add OPENAI_API_KEY
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
 
-# Rotate all secrets with a new keypair
-cocapn-bridge secret rotate
+- Fork the repository
+- Create your feature branch
+- Commit your changes
+- Push to the branch
+- Open a Pull Request
 
-# Store GitHub token in OS keychain
-cocapn-bridge token set
-```
+---
 
-All secrets are age-encrypted at rest in your private repo. Agent subprocesses only receive `COCAPN_*` variables — host secrets (AWS, OpenAI, GitHub tokens) are stripped. Every sensitive action is recorded in `cocapn/audit.log`.
+## 📄 License
 
-## Documentation
+MIT License - see [LICENSE](LICENSE) for details.
 
-- [Architecture](docs/architecture.md)
-- [Agent Guide](docs/agents.md)
-- [Skins & Domains](docs/skins.md)
-- [Fleet & Multi-device](docs/fleet.md)
-- [Security](docs/security.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Error Codes](docs/ERROR-CODES.md)
+---
 
-## License
+## 👤 Author
 
-MIT
+**Superinstance**
+
+🌐 [superinstance.com](https://superinstance.com)
+
+---
+
+<div align="center">
+
+**Built with ❤️ by Superinstance**
+
+**Star us on GitHub — [github.com/superinstance/cocapn](https://github.com/superinstance/cocapn)**
+
+</div>
