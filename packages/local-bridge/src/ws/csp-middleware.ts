@@ -77,7 +77,7 @@ function generateCSP(options: SecurityHeaderOptions): string {
 
   const directives = [
     `default-src ${defaultSrc}`,
-    `script-src ${scriptSrc}`,
+    `script-src ${scriptSources}`,
     `connect-src ${connectSources}`,
     `style-src ${styleSrc}`,
     `img-src ${imgSrc}`,
