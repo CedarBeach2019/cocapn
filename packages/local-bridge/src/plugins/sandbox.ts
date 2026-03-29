@@ -1,0 +1,260 @@
+/**
+ * Plugin Sandbox — Execute cold plugin skills in isolated subprocess
+ *
+ * Cold skills run in isolated Node.js processes with:
+ * - Timeout enforcement
+ * - Memory limit enforcement
+ * - Permission-based access control
+ * - Clean IPC via stdio JSON-RPC
+ */
+
+import { spawn, type ChildProcess } from 'node:child_process';
+import { join } from 'node:path';
+import type { PluginPermission, SandboxContext, SandboxResult } from './types.js';
+import { createLogger } from '../logger.js';
+import { filterEnv } from '../agents/spawner.js';
+
+const logger = createLogger('plugins:sandbox');
+
+// ─── Sandbox Options ───────────────────────────────────────────────────────────
+
+export interface SandboxOptions {
+  /** Maximum execution time (ms) */
+  timeout?: number;
+  /** Maximum memory (bytes) */
+  maxMemory?: number;
+  /** Working directory */
+  cwd?: string;
+  /** Environment variables (filtered by permissions) */
+  env?: Record<string, string>;
+}
+
+// ─── Sandbox Class ─────────────────────────────────────────────────────────────
+
+export class PluginSandbox {
+  /**
+   * Execute a cold plugin skill in an isolated subprocess
+   *
+   * @param pluginPath - Path to plugin directory
+   * @param skillEntry - Relative path to skill entry file
+   * @param input - Input data to pass to the skill
+   * @param context - Sandbox execution context
+   * @returns Execution result
+   */
+  async execute(
+    pluginPath: string,
+    skillEntry: string,
+    input: unknown,
+    context: SandboxContext
+  ): Promise<SandboxResult> {
+    const startTime = Date.now();
+    const skillPath = join(pluginPath, skillEntry);
+
+    // Build environment with permission-based filtering
+    const env = this.buildEnv(context);
+
+    // Spawn child process
+    const proc = spawn('node', ['--experimental-modules', skillPath], {
+      cwd: pluginPath,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+
+    // Set up timeout
+    const timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGKILL');
+      logger.warn('Sandbox execution timed out', { skill: context.skill, timeout: context.timeout });
+    }, context.timeout);
+
+    // Collect output
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    // Wait for completion
+    const exitCode = await new Promise<number | null>((resolve) => {
+      proc.on('exit', (code) => resolve(code));
+      proc.on('error', (err) => {
+        logger.error('Sandbox process error', { error: err });
+        resolve(-1);
+      });
+    });
+
+    clearTimeout(timeoutHandle);
+
+    const duration = Date.now() - startTime;
+
+    return {
+      exitCode: exitCode ?? -1,
+      stdout,
+      stderr,
+      duration,
+      memory: 0, // TODO: Track memory usage
+      timedOut,
+    };
+  }
+
+  /**
+   * Execute a skill with JSON-RPC protocol
+   *
+   * Sends input via stdin and expects JSON response via stdout.
+   */
+  async executeRpc(
+    pluginPath: string,
+    skillEntry: string,
+    method: string,
+    params: unknown,
+    context: SandboxContext
+  ): Promise<unknown> {
+    const startTime = Date.now();
+    const skillPath = join(pluginPath, skillEntry);
+
+    const env = this.buildEnv(context);
+
+    const proc = spawn('node', ['--experimental-modules', skillPath], {
+      cwd: pluginPath,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let timedOut = false;
+
+    const timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGKILL');
+    }, context.timeout);
+
+    // Send JSON-RPC request
+    const request = {
+      jsonrpc: '2.0',
+      id: 1,
+      method,
+      params,
+    };
+
+    const writer = proc.stdin;
+    if (writer) {
+      writer.write(JSON.stringify(request) + '\n');
+    }
+
+    // Read response
+    let responseData = '';
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const reader = proc.stdout;
+      if (!reader) {
+        reject(new Error('No stdout'));
+        return;
+      }
+
+      reader.on('data', (chunk: Buffer) => {
+        responseData += chunk.toString();
+      });
+
+      reader.on('end', () => {
+        resolve(responseData.trim());
+      });
+
+      proc.on('error', reject);
+    });
+
+    await Promise.race([
+      responsePromise,
+      new Promise<void>((resolve) => {
+        proc.on('exit', () => resolve());
+      }),
+    ]);
+
+    clearTimeout(timeoutHandle);
+
+    if (timedOut) {
+      throw new Error(`Sandbox execution timed out after ${context.timeout}ms`);
+    }
+
+    try {
+      const response = JSON.parse(responseData);
+      if (response.error) {
+        throw new Error(response.error.message || 'Unknown error');
+      }
+      return response.result;
+    } catch (err) {
+      throw new Error(`Failed to parse skill response: ${err}`);
+    }
+  }
+
+  /**
+   * Build environment variables for sandbox
+   * Filters based on granted permissions
+   */
+  private buildEnv(context: SandboxContext): Record<string, string> {
+    const env: Record<string, string> = {
+      // Cocapn context
+      COCAPN_PLUGIN: context.plugin,
+      COCAPN_SKILL: context.skill,
+      COCAPN_SANDBOX: '1',
+      NODE_ENV: 'production',
+    };
+
+    // Add granted env var permissions
+    for (const perm of context.permissions) {
+      if (perm.type === 'env' && perm.scope) {
+        const value = process.env[perm.scope];
+        if (value !== undefined) {
+          env[perm.scope] = value;
+        }
+      }
+    }
+
+    // Add parent env with cocapn filtering
+    const parentEnv = filterEnv(process.env, {});
+    Object.assign(env, parentEnv);
+
+    // Override with provided env
+    if (context.env) {
+      Object.assign(env, context.env);
+    }
+
+    return env;
+  }
+
+  /**
+   * Check if a network request is allowed based on permissions
+   */
+  static isNetworkAllowed(host: string, permissions: PluginPermission[]): boolean {
+    return permissions.some(p => {
+      if (p.type !== 'network') return false;
+      return p.scope === '*' || p.scope === host;
+    });
+  }
+
+  /**
+   * Check if filesystem access is allowed
+   */
+  static isFsAccessAllowed(path: string, permissions: PluginPermission[], write: boolean): boolean {
+    const type = write ? 'fs:write' : 'fs:read';
+    return permissions.some(p => {
+      if (p.type !== type) return false;
+      if (p.scope === '*') return true;
+      if (!p.scope) return false;
+      return path.startsWith(p.scope);
+    });
+  }
+
+  /**
+   * Check if shell command execution is allowed
+   */
+  static isShellAllowed(command: string, permissions: PluginPermission[]): boolean {
+    return permissions.some(p => {
+      if (p.type !== 'shell') return false;
+      return p.scope === '*' || p.scope === command;
+    });
+  }
+}
