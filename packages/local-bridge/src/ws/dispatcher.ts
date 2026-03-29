@@ -298,6 +298,84 @@ async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerC
       };
     }
 
+    case "graph/query": {
+      if (!ctx.brain || !ctx.brain.hasGraph()) {
+        return { error: "Repo graph not available" };
+      }
+      const graph = ctx.brain.getGraph()!;
+      const query = p.query as string | undefined;
+      const params = p.params as Record<string, unknown> | undefined;
+
+      if (!query) {
+        return { error: "Missing query type" };
+      }
+
+      switch (query) {
+        case "dependencies": {
+          const file = params?.file as string;
+          if (!file) return { error: "Missing file parameter" };
+          const deps = await graph.getDependencies(file);
+          return { dependencies: deps };
+        }
+
+        case "dependents": {
+          const file = params?.file as string;
+          if (!file) return { error: "Missing file parameter" };
+          const dependents = await graph.getDependents(file);
+          return { dependents };
+        }
+
+        case "callGraph": {
+          const functionId = params?.functionId as string;
+          if (!functionId) return { error: "Missing functionId parameter" };
+          const calls = await graph.getCallGraph(functionId);
+          return { calls };
+        }
+
+        case "reverseCallGraph": {
+          const functionId = params?.functionId as string;
+          if (!functionId) return { error: "Missing functionId parameter" };
+          const callers = await graph.getReverseCallGraph(functionId);
+          return { callers };
+        }
+
+        case "findByName": {
+          const pattern = params?.pattern as string;
+          if (!pattern) return { error: "Missing pattern parameter" };
+          const nodes = await graph.findByName(pattern);
+          return { nodes };
+        }
+
+        case "findByFile": {
+          const file = params?.file as string;
+          if (!file) return { error: "Missing file parameter" };
+          const nodes = await graph.findByFile(file);
+          return { nodes };
+        }
+
+        case "findExported": {
+          const nodes = await graph.findExported();
+          return { nodes };
+        }
+
+        case "impactRadius": {
+          const nodeId = params?.nodeId as string;
+          const depth = params?.depth as number | undefined;
+          if (!nodeId) return { error: "Missing nodeId parameter" };
+          const impact = await graph.getImpactRadius(nodeId, depth);
+          return { impact };
+        }
+
+        case "stats": {
+          const stats = await graph.stats();
+          return { stats };
+        }
+
+        default:
+          return { error: `Unknown graph query: ${query}` };
+      }
+    }
+
     default:
       throw Object.assign(new Error(`Unknown bridge method: ${method}`), { code: -32601 });
   }

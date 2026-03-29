@@ -29,11 +29,13 @@
     "age-encryption": "^0.1.5",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.8.0",
     "chokidar": "^3.6.0",
     "commander": "^12.1.0",
     "gray-matter": "^4.0.3",
     "libsodium-wrappers-sumo": "^0.8.2",
     "simple-git": "^3.25.0",
+    "ts-morph": "^27.0.2",
     "ws": "^8.17.0",
     "yaml": "^2.4.0"
   },
