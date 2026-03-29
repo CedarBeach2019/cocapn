@@ -272,6 +272,38 @@ export class BridgeClient extends EventEmitter {
   }
 
   /**
+   * List personality presets
+   */
+  async listPersonalities(): Promise<{ builtIn: Array<{ name: string; tagline: string; voice: string; traits: string[] }>; current: string }> {
+    const result = await this.sendRequest("personality/list") as any;
+    return result;
+  }
+
+  /**
+   * Get current personality
+   */
+  async getPersonality(): Promise<{ personality: { name: string; tagline: string; voice: string; traits: string[]; rules: string[]; systemPrompt: string } }> {
+    const result = await this.sendRequest("personality/get") as any;
+    return result;
+  }
+
+  /**
+   * Set personality preset
+   */
+  async setPersonality(name: string): Promise<{ personality: { name: string; tagline: string } }> {
+    const result = await this.sendRequest("personality/set", { name }) as any;
+    return result;
+  }
+
+  /**
+   * Get soul.md edit path
+   */
+  async editPersonality(): Promise<{ soulPath: string }> {
+    const result = await this.sendRequest("personality/edit") as any;
+    return result;
+  }
+
+  /**
    * Handle incoming WebSocket message
    */
   private handleMessage(data: Buffer): void {

@@ -14,6 +14,7 @@
  */
 
 import { WebSocket, type RawData } from "ws";
+import { join } from "path";
 import type { TypedMessage, JsonRpcRequest } from "./types.js";
 import type { HandlerContext, TypedHandler } from "../handlers/types.js";
 
@@ -118,7 +119,7 @@ async function dispatchRpc(
 ): Promise<void> {
   const { method, params, id } = req;
 
-  if (method.startsWith("bridge/") || method.startsWith("skill/") || method.startsWith("llm/") || method.startsWith("memory/") || method.startsWith("knowledge/") || method.startsWith("settings/") || method.startsWith("webhook/") || method.startsWith("graph/") || method.startsWith("tree/")) {
+  if (method.startsWith("bridge/") || method.startsWith("skill/") || method.startsWith("llm/") || method.startsWith("memory/") || method.startsWith("knowledge/") || method.startsWith("settings/") || method.startsWith("webhook/") || method.startsWith("graph/") || method.startsWith("tree/") || method.startsWith("personality/")) {
     const result = await handleBridgeMethod(method, params, ctx);
     ctx.sender.result(ws, id, result);
     return;
@@ -807,6 +808,49 @@ async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerC
       const maxRetries = p.maxRetries as number | undefined;
       await webhookManager.retryFailed(maxRetries);
       return { success: true };
+    }
+
+    case "personality/list": {
+      if (!ctx.personalityManager) {
+        return { error: "Personality manager not available" };
+      }
+      const builtIn = ctx.personalityManager.listBuiltIn();
+      const current = ctx.personalityManager.get();
+      return {
+        builtIn: builtIn.map(name => {
+          const p = ctx.personalityManager!.getBuiltIn(name)!;
+          return { name: p.name, tagline: p.tagline, voice: p.voice, traits: p.traits };
+        }),
+        current: current.name,
+      };
+    }
+
+    case "personality/get": {
+      if (!ctx.personalityManager) {
+        return { error: "Personality manager not available" };
+      }
+      const personality = ctx.personalityManager.get();
+      return { personality };
+    }
+
+    case "personality/set": {
+      if (!ctx.personalityManager) {
+        return { error: "Personality manager not available" };
+      }
+      const name = p.name as string | undefined;
+      if (!name) {
+        return { error: "Missing personality name" };
+      }
+      const personality = await ctx.personalityManager.applyPreset(name);
+      return { personality };
+    }
+
+    case "personality/edit": {
+      if (!ctx.personalityManager) {
+        return { error: "Personality manager not available" };
+      }
+      const soulPath = join(ctx.repoRoot, ctx.config.soul);
+      return { soulPath };
     }
 
     default:

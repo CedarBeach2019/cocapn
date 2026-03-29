@@ -70,7 +70,7 @@ import {
 import type { CloudConnector } from "../cloud-bridge/connector.js";
 import { SettingsManager } from "../settings/index.js";
 import { handleChatStream } from "../handlers/llm.js";
-import { handleMemoryListTyped, handleMemoryAddTyped, handleMemoryDeleteTyped } from "../handlers/memory.js";
+import { handleMemoryListTyped, handleMemoryAddTyped, handleMemoryDeleteTyped, handleWikiListTyped, handleWikiReadTyped, handleSoulGetTyped } from "../handlers/memory.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -159,6 +159,9 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       ["MEMORY_LIST", handleMemoryListTyped],
       ["MEMORY_ADD", handleMemoryAddTyped],
       ["MEMORY_DELETE", handleMemoryDeleteTyped],
+      ["WIKI_LIST", handleWikiListTyped],
+      ["WIKI_READ", handleWikiReadTyped],
+      ["SOUL_GET", handleSoulGetTyped],
     ]);
 
     // ChatHandler needs broadcast and moduleManager
@@ -274,6 +277,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       settingsManager: this.settingsManager,
       analytics: this.options.analytics,
       llmRouter: this.options.llmRouter,
+      personalityManager: this.options.personalityManager,
       getModuleManager: () => {
         if (!moduleManagerRef.current) {
           moduleManagerRef.current = new ModuleManager(this.options.repoRoot);

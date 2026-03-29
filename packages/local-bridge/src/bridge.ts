@@ -40,6 +40,7 @@ import { RepoGraph } from "./graph/index.js";
 import { SelfAssembler, SelfAssembler as AssemblySystem } from "./assembly/index.js";
 import { CloudConnector, type CloudConnectorConfig } from "./cloud-bridge/connector.js";
 import { LLMRouter, type LLMRouterConfig } from "./llm/index.js";
+import { PersonalityManager } from "./personality/index.js";
 import type { BridgeConfig } from "./config/types.js";
 import type { AssemblyResult } from "./assembly/index.js";
 
@@ -98,6 +99,7 @@ export class Bridge {
   private assembler:     AssemblySystem;
   private cloudConnector: CloudConnector | undefined;
   private llmRouter:     LLMRouter | undefined;
+  private personalityManager: PersonalityManager;
 
   constructor(options: BridgeOptions) {
     this.options    = options;
@@ -150,6 +152,9 @@ export class Bridge {
     // Initialize LLM router if LLM config is present
     this.llmRouter = this.initLLMRouter();
 
+    // Initialize personality manager
+    this.personalityManager = new PersonalityManager(this.brain, options.privateRepoRoot);
+
     this.router = new AgentRouter(
       {
         rules:         [],
@@ -179,6 +184,7 @@ export class Bridge {
       enablePeerApi:  true,
       bridge:         this,
       llmRouter:      this.llmRouter,
+      personalityManager: this.personalityManager,
       conversationMemory: new ConversationMemory(this.brain),
     });
   }

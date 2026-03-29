@@ -22,6 +22,7 @@ import type { SettingsManager } from "../settings/index.js";
 import type { Analytics } from "../analytics/index.js";
 import type { LLMRouter } from "../llm/index.js";
 import type { ConversationMemory } from "../brain/conversation-memory.js";
+import type { PersonalityManager } from "../personality/index.js";
 
 // Forward declaration for Bridge to avoid circular dependency
 export interface BridgeLike {
@@ -97,6 +98,8 @@ export interface BridgeServerOptions {
   llmRouter?: LLMRouter;
   /** Conversation memory — fact extraction and context injection */
   conversationMemory?: ConversationMemory;
+  /** Personality manager — agent personality customization */
+  personalityManager?: PersonalityManager;
 }
 
 // ─── Event map ───────────────────────────────────────────────────────────────
@@ -140,7 +143,10 @@ export type TypedMessageType =
   | "UPDATE_SETTINGS"
   | "MEMORY_LIST"
   | "MEMORY_ADD"
-  | "MEMORY_DELETE";
+  | "MEMORY_DELETE"
+  | "WIKI_LIST"
+  | "WIKI_READ"
+  | "SOUL_GET";
 
 export interface TypedMessage {
   type: TypedMessageType;

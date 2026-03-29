@@ -30,6 +30,7 @@ import type { HandoffProcessor } from "../handoff/processor.js";
 import type { SettingsManager } from "../settings/index.js";
 import type { Analytics } from "../analytics/index.js";
 import type { LLMRouter } from "../llm/index.js";
+import type { PersonalityManager } from "../personality/index.js";
 
 // Forward declaration for Bridge to avoid circular dependency
 export interface BridgeLike {
@@ -90,6 +91,7 @@ export interface HandlerContext {
   readonly settingsManager: SettingsManager | undefined;
   readonly analytics: Analytics | undefined;
   readonly llmRouter: LLMRouter | undefined;
+  readonly personalityManager: PersonalityManager | undefined;
 
   // Mutable — lazily created
   getModuleManager(): ModuleManager;
