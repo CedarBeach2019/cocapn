@@ -5,6 +5,23 @@
 
 export type BridgeMode = "local" | "hybrid" | "cloud";
 
+export type EmbeddingProvider = "local" | "openai";
+
+export interface VectorSearchConfig {
+  /** Enable vector search (defaults to true, falls back to false if unavailable) */
+  enabled: boolean;
+  /** Embedding provider to use */
+  provider: EmbeddingProvider;
+  /** OpenAI API key (only used when provider is "openai") */
+  apiKey?: string;
+  /** Model name for OpenAI embeddings (default: text-embedding-3-small) */
+  model?: string;
+  /** Embedding dimensions (default: 384 for local, 1536 for OpenAI) */
+  dimensions?: number;
+  /** Alpha weight for keyword vs semantic search (0-1, default: 0.6) */
+  alpha?: number;
+}
+
 export interface BridgeConfig {
   /** Path to the soul.md personality file */
   soul: string;
@@ -37,6 +54,8 @@ export interface BridgeConfig {
     autoCommit: boolean;
     autoPush: boolean;
   };
+
+  vectorSearch?: VectorSearchConfig;
 }
 
 export const DEFAULT_CONFIG: BridgeConfig = {
@@ -61,5 +80,11 @@ export const DEFAULT_CONFIG: BridgeConfig = {
     memoryInterval: 60,
     autoCommit: true,
     autoPush: false,
+  },
+  vectorSearch: {
+    enabled: true,
+    provider: "local",
+    dimensions: 384,
+    alpha: 0.6,
   },
 };

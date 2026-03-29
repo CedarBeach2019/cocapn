@@ -340,7 +340,7 @@ export class BrainMCPServer extends MCPServer {
             isError: false,
           };
         }
-        const results = this.brain.searchWiki(""); // Search all pages
+        const results = await this.brain.searchWiki(""); // Search all pages
         if (results.length === 0) {
           return {
             content: [

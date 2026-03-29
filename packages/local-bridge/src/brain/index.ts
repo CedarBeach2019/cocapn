@@ -23,6 +23,9 @@ import { join, extname, basename } from "path";
 import type { GitSync } from "../git/sync.js";
 import type { BridgeConfig } from "../config/types.js";
 import { InvertedIndex, tokenize } from "../utils/inverted-index.js";
+import { createEmbeddingProvider, type EmbeddingOptions } from "./embedding.js";
+import { createVectorStore, type VectorStore } from "./vector-store.js";
+import { createHybridSearch, HybridSearch } from "./hybrid-search.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,12 +54,71 @@ export class Brain {
   private sync: GitSync;
   private wikiIndex: InvertedIndex;
   private wikiIndexInitialized = false;
+  private hybridSearch: HybridSearch;
+  private vectorStore: VectorStore | null = null;
+  private embeddingProvider: any = null;
 
   constructor(repoRoot: string, config: BridgeConfig, sync: GitSync) {
     this.repoRoot = repoRoot;
     this.config = config;
     this.sync = sync;
     this.wikiIndex = new InvertedIndex();
+
+    // Initialize hybrid search with vector store (optional)
+    this.hybridSearch = this.initializeVectorSearch();
+  }
+
+  /**
+   * Initialize vector search (optional, with graceful fallback).
+   * This runs in the background and doesn't block the constructor.
+   */
+  private initializeVectorSearch(): HybridSearch {
+    // Initialize async (non-blocking)
+    setImmediate(async () => {
+      const vectorConfig = this.config.vectorSearch;
+      if (!vectorConfig?.enabled) {
+        return;
+      }
+
+      try {
+        // Create embedding provider
+        const embeddingOptions: EmbeddingOptions = {
+          provider: vectorConfig.provider || "local",
+          apiKey: vectorConfig.apiKey,
+          model: vectorConfig.model,
+          dimensions: vectorConfig.dimensions,
+        };
+
+        this.embeddingProvider = await createEmbeddingProvider(embeddingOptions);
+        const initResult = await this.embeddingProvider.initialize();
+
+        if (!initResult.success) {
+          // Silently fall back to keyword-only
+          return;
+        }
+
+        // Create vector store
+        const vectorStore = await createVectorStore(
+          this.repoRoot,
+          this.embeddingProvider,
+          vectorConfig.dimensions || 384
+        );
+
+        if (!vectorStore.isEnabled()) {
+          // Silently fall back to keyword-only
+          return;
+        }
+
+        this.vectorStore = vectorStore;
+        // Update hybrid search with vector store
+        this.hybridSearch = createHybridSearch(this.wikiIndex, this.vectorStore);
+      } catch (error) {
+        // Silently fall back to keyword-only
+      }
+    });
+
+    // Create hybrid search (will use keyword-only until vector store is ready)
+    return createHybridSearch(this.wikiIndex, null);
   }
 
   // ---------------------------------------------------------------------------
@@ -118,11 +180,11 @@ export class Brain {
 
   /**
    * Search all .md files under the wiki directory for the given query string.
-   * Uses inverted index for O(1) term lookups. Returns pages sorted by relevance.
+   * Uses hybrid search (keyword + semantic) if available, falls back to keyword-only.
    *
    * The index is built on first search and rebuilt when wiki pages change.
    */
-  searchWiki(query: string): WikiPage[] {
+  async searchWiki(query: string): Promise<WikiPage[]> {
     const wikiDir = join(this.repoRoot, "cocapn", "wiki");
     if (!existsSync(wikiDir)) return [];
 
@@ -132,7 +194,10 @@ export class Brain {
     }
 
     const results: WikiPage[] = [];
-    const searchResults = this.wikiIndex.search(query);
+    const searchResults = await this.hybridSearch.search(query, {
+      alpha: this.config.vectorSearch?.alpha || 0.6,
+      topK: 10,
+    });
     const lower = query.toLowerCase();
 
     for (const { id: file } of searchResults) {
@@ -155,6 +220,7 @@ export class Brain {
   /**
    * Rebuild the wiki search index.
    * Call this after adding, updating, or removing wiki pages.
+   * Also rebuilds vector embeddings if available.
    */
   private rebuildWikiIndex(): void {
     this.wikiIndex.clear();
@@ -169,6 +235,17 @@ export class Brain {
       try {
         const content = readFileSync(fullPath, "utf8");
         this.wikiIndex.add(file, content);
+
+        // Store embedding in background (non-blocking)
+        if (this.vectorStore && this.vectorStore.isEnabled()) {
+          setImmediate(async () => {
+            try {
+              await this.vectorStore.store(file, content);
+            } catch (error) {
+              // Silently fail to allow keyword-only search
+            }
+          });
+        }
       } catch {
         // Skip unreadable files
       }
@@ -179,6 +256,7 @@ export class Brain {
   /**
    * Add a new wiki page from a local file path.
    * Copies the file into cocapn/wiki/ and auto-commits.
+   * Also stores embedding if vector search is available.
    */
   async addWikiPage(sourcePath: string, destName?: string): Promise<void> {
     const wikiDir = join(this.repoRoot, "cocapn", "wiki");
@@ -189,6 +267,18 @@ export class Brain {
     const content = readFileSync(sourcePath, "utf8");
     writeFileSync(destPath, content, "utf8");
     this.wikiIndex.add(name, content);
+
+    // Store embedding in background (non-blocking)
+    if (this.vectorStore && this.vectorStore.isEnabled()) {
+      setImmediate(async () => {
+        try {
+          await this.vectorStore.store(name, content);
+        } catch (error) {
+          // Silently fail to allow keyword-only search
+        }
+      });
+    }
+
     await this.sync.commit(`update memory: added wiki page ${name}`);
   }
 
