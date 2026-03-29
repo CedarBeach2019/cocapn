@@ -26,7 +26,7 @@ import type { CloudAdapterRegistry } from "../CloudAdapter.js";
 import type { Brain } from "../brain/index.js";
 import { ModuleManager } from "../modules/manager.js";
 import { AuditLogger } from "../security/audit.js";
-import { authenticateConnection, verifyPeerAuth as verifyPeerAuthHandler } from "../security/auth-handler.js";
+import { authenticateConnection } from "../security/auth-handler.js";
 import { ChatRouter } from "./chat-router.js";
 import { ChatHandler } from "../handlers/chat-handler.js";
 import { createSender, type Sender } from "./send.js";
@@ -44,6 +44,7 @@ import { handleFileEdit } from "../handlers/file.js";
 import { handleA2aRequest } from "../handlers/a2a.js";
 import { handleModuleInstall } from "../handlers/module.js";
 import { handleChangeSkin } from "../handlers/skin.js";
+import { handleHttpPeerRequest } from "../handlers/peer.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -199,6 +200,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
   /**
    * HTTP request handler for A2A peer discovery and fact query endpoints.
+   * Delegates to the peer handler.
    *
    *   GET /.well-known/cocapn/peer   → peer card (domain, capabilities, publicKey)
    *   GET /api/peer/fact?key=<k>     → { key, value } from Brain facts
@@ -208,59 +210,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     req: IncomingMessage,
     res: ServerResponse
   ): Promise<void> {
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
-    const url = req.url ?? "/";
-    const { pathname, searchParams } = new URL(url, "http://localhost");
-
-    // ── Peer discovery card ───────────────────────────────────────────────────
-    if (pathname === "/.well-known/cocapn/peer") {
-      const card = {
-        domain:       this.options.config.config.tunnel ?? `localhost:${this.options.config.config.port}`,
-        capabilities: ["chat", "memory", "a2a"],
-        publicKey:    this.options.config.encryption.publicKey || null,
-        version:      "0.1.0",
-      };
-      res.writeHead(200).end(JSON.stringify(card));
-      return;
-    }
-
-    // Remaining endpoints require fleet JWT auth
-    if (!this.verifyPeerAuth(req)) {
-      res.writeHead(401).end(JSON.stringify({ error: "Unauthorized — fleet JWT required" }));
-      return;
-    }
-
-    // ── Single fact query ─────────────────────────────────────────────────────
-    if (pathname === "/api/peer/fact") {
-      const key = searchParams.get("key");
-      if (!key) {
-        res.writeHead(400).end(JSON.stringify({ error: "Missing key parameter" }));
-        return;
-      }
-      const value = this.options.brain?.getFact(key);
-      if (value === undefined) {
-        res.writeHead(404).end(JSON.stringify({ error: "Fact not found", key }));
-        return;
-      }
-      res.writeHead(200).end(JSON.stringify({ key, value }));
-      return;
-    }
-
-    // ── All facts ─────────────────────────────────────────────────────────────
-    if (pathname === "/api/peer/facts") {
-      const facts = this.options.brain?.getAllFacts() ?? {};
-      res.writeHead(200).end(JSON.stringify({ facts }));
-      return;
-    }
-
-    res.writeHead(404).end(JSON.stringify({ error: "Not found" }));
-  }
-
-  /** Verify fleet JWT in Authorization header. Returns true when auth is disabled (skipAuth). */
-  private verifyPeerAuth(req: IncomingMessage): boolean {
-    return verifyPeerAuthHandler(req, this.options.skipAuth, this.options.fleetKey);
+    await handleHttpPeerRequest(req, res, this.handlerCtx);
   }
 
   // ---------------------------------------------------------------------------
