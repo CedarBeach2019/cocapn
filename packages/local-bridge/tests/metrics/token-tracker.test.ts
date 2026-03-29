@@ -8,8 +8,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "fs";
 import { join } from "path";
-import { TokenTracker } from "../src/metrics/token-tracker.js";
-import type { TokenRecord, TokenStats } from "../src/metrics/token-tracker.js";
+import { TokenTracker } from "../../src/metrics/token-tracker.js";
+import type { TokenRecord, TokenStats } from "../../src/metrics/token-tracker.js";
 import { tmpdir } from "os";
 
 describe("TokenTracker", () => {
