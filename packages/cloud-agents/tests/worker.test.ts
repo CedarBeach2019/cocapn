@@ -108,17 +108,25 @@ class MockDurableObjectNamespace implements DurableObjectNamespace {
 function createMockEnv(): {
   GITHUB_PAT: string;
   FLEET_JWT_SECRET: string;
+  DEEPSEEK_API_KEY: string;
   PRIVATE_REPO: string;
   PUBLIC_REPO: string;
   BRIDGE_MODE: string;
+  AUTH_KV: KVNamespace;
   ADMIRAL: DurableObjectNamespace;
 } {
   return {
     GITHUB_PAT: "test-github-pat",
     FLEET_JWT_SECRET: "test-fleet-secret-for-testing",
+    DEEPSEEK_API_KEY: "test-deepseek-key",
     PRIVATE_REPO: "test/private-repo",
     PUBLIC_REPO: "test/public-repo",
     BRIDGE_MODE: "cloud",
+    AUTH_KV: {
+      get: async () => null,
+      put: async () => {},
+      delete: async () => {},
+    } as unknown as KVNamespace,
     ADMIRAL: new MockDurableObjectNamespace() as unknown as DurableObjectNamespace,
   };
 }
@@ -130,7 +138,7 @@ async function jsonResponse<T>(response: Response): Promise<T> {
 // ─── Test suite ────────────────────────────────────────────────────────────────
 
 describe("Cloud Agent Worker HTTP API", () => {
-  let worker: ExportedHandler<{ GITHUB_PAT: string; FLEET_JWT_SECRET: string; PRIVATE_REPO: string; PUBLIC_REPO: string; BRIDGE_MODE: string; ADMIRAL: DurableObjectNamespace }>;
+  let worker: ExportedHandler<{ GITHUB_PAT: string; FLEET_JWT_SECRET: string; DEEPSEEK_API_KEY: string; PRIVATE_REPO: string; PUBLIC_REPO: string; BRIDGE_MODE: string; AUTH_KV: KVNamespace; ADMIRAL: DurableObjectNamespace }>;
   let env: ReturnType<typeof createMockEnv>;
 
   beforeEach(async () => {

@@ -7,6 +7,7 @@
  *
  * HTTP API:
  *   - POST /api/execute-task — validates fleet JWT, executes scheduled task
+ *   - POST /api/chat — send messages to DeepSeek LLM, get response
  *   - POST /api/webhook/github — GitHub webhook handler
  *   - GET /api/status/:taskId — task execution status
  *   - GET /api/health — health check
@@ -19,13 +20,15 @@
  *     4. Notifies the Admiral DO so other bridge instances can see the update
  *
  * Deploy: wrangler deploy
- * Secrets: GITHUB_PAT, FLEET_JWT_SECRET  (set via `wrangler secret put`)
+ * Secrets: GITHUB_PAT, FLEET_JWT_SECRET, DEEPSEEK_API_KEY  (set via `wrangler secret put`)
  */
 
 import { A2AServer } from "@cocapn/protocols/a2a";
 import type { Task } from "@cocapn/protocols/a2a";
 import { makeGitHubClient } from "./github.js";
 import { AdmiralClient } from "./admiral.js";
+import { chatWithDeepSeek } from "./llm.js";
+import type { ChatMessage } from "./llm.js";
 export { AdmiralDO } from "./admiral.js";
 
 // Auth imports
@@ -46,6 +49,7 @@ import {
 export interface Env {
   GITHUB_PAT:       string;
   FLEET_JWT_SECRET: string;
+  DEEPSEEK_API_KEY: string;
   PRIVATE_REPO:     string;
   PUBLIC_REPO:      string;
   BRIDGE_MODE:      string;
@@ -369,6 +373,39 @@ async function handleGetTaskStatus(taskId: string, env: Env): Promise<Response> 
   }
 }
 
+/**
+ * POST /api/chat
+ *
+ * Simple chat endpoint — accepts messages, calls DeepSeek, returns response.
+ * Requires DEEPSEEK_API_KEY to be configured.
+ */
+async function handleChat(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = await request.json() as { messages?: ChatMessage[] };
+
+    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+      return errorResponse('Missing or empty messages array', 400);
+    }
+
+    // Validate message format
+    for (const msg of body.messages) {
+      if (!msg.role || !msg.content || !['system', 'user', 'assistant'].includes(msg.role)) {
+        return errorResponse('Invalid message format: each message must have role (system/user/assistant) and content', 400);
+      }
+    }
+
+    if (!env.DEEPSEEK_API_KEY) {
+      return errorResponse('DEEPSEEK_API_KEY is not configured. Set it via: wrangler secret put DEEPSEEK_API_KEY', 503);
+    }
+
+    const result = await chatWithDeepSeek(body.messages, env.DEEPSEEK_API_KEY);
+    return jsonResponse(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(`Chat failed: ${msg}`, 500);
+  }
+}
+
 // ─── Response Helpers ─────────────────────────────────────────────────────────
 
 function jsonResponse(data: unknown): Response {
@@ -412,6 +449,11 @@ export default {
     // Execute scheduled task
     if (pathname === "/api/execute-task" && request.method === "POST") {
       return handleExecuteTask(request, env);
+    }
+
+    // Chat endpoint
+    if (pathname === "/api/chat" && request.method === "POST") {
+      return handleChat(request, env);
     }
 
     // GitHub webhook
@@ -517,8 +559,8 @@ export default {
             github.readWiki(),
           ]);
 
-          // ── Execute (stub — replace with actual AI invocation) ─────────────
-          const result = await executeTask(userText, { soul, facts, wiki });
+          // ── Execute via DeepSeek LLM ─────────────────────────────────────────
+          const result = await executeTask(userText, { soul, facts, wiki }, env.DEEPSEEK_API_KEY);
 
           // Write result back to Git as a coordination message
           try {
@@ -607,24 +649,41 @@ export default {
   },
 };
 
-// ─── Task execution stub ──────────────────────────────────────────────────────
-//
-// Replace this with a real AI API call (Anthropic, Workers AI, etc.).
-// The soul, facts, and wiki are passed as context.
+// ─── Task execution via DeepSeek LLM ─────────────────────────────────────────
 
 async function executeTask(
   userText: string,
-  context: { soul: string; facts: unknown[]; wiki: string }
+  context: { soul: string; facts: unknown[]; wiki: string },
+  apiKey?: string,
 ): Promise<string> {
-  // Example: call Workers AI or Anthropic API here using the context.
-  // For now, return a placeholder that proves the pipeline works end-to-end.
   const factCount = context.facts.length;
-  const hasSoul   = context.soul.length > 0;
-  const hasWiki   = context.wiki.length > 0;
 
-  return (
-    `[Cloud agent received: "${userText}"]\n` +
-    `Context loaded — soul: ${hasSoul}, facts: ${factCount}, wiki: ${hasWiki}.\n` +
-    `Replace executeTask() in worker.ts with your AI call to produce real results.`
-  );
+  // Build system prompt from context
+  const systemParts: string[] = ['You are a helpful cloud agent for cocapn.'];
+  if (context.soul) {
+    systemParts.push(`Personality/soul:\n${context.soul}`);
+  }
+  if (factCount > 0) {
+    systemParts.push(`Known facts (${factCount}):\n${JSON.stringify(context.facts.slice(0, 20))}`);
+  }
+  if (context.wiki) {
+    systemParts.push(`Wiki:\n${context.wiki.slice(0, 2000)}`);
+  }
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: systemParts.join('\n\n') },
+    { role: 'user', content: userText },
+  ];
+
+  // If no API key is configured, return context summary (graceful degradation)
+  if (!apiKey) {
+    return (
+      `[Cloud agent received: "${userText}"]\n` +
+      `Context loaded — soul: ${context.soul.length > 0}, facts: ${factCount}, wiki: ${context.wiki.length > 0}.\n` +
+      `Note: DEEPSEEK_API_KEY is not configured — set via wrangler secret put.`
+    );
+  }
+
+  const result = await chatWithDeepSeek(messages, apiKey);
+  return result.content;
 }
