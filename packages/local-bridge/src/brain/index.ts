@@ -27,6 +27,12 @@ import { createEmbeddingProvider, type EmbeddingOptions } from "./embedding.js";
 import { createVectorStore, type VectorStore } from "./vector-store.js";
 import { createHybridSearch, HybridSearch } from "./hybrid-search.js";
 import type { RepoGraph } from "../graph/index.js";
+import { MemoryManager, type MemoryEntry, type MemoryManagerOptions } from "./memory-manager.js";
+
+// ─── Re-exports ─────────────────────────────────────────────────────────────────
+
+export type { MemoryEntry, MemoryManagerOptions, MemoryWriteOptions, MemoryType, MemoryStats, PruneResult } from "./memory-manager.js";
+export { MemoryManager } from "./memory-manager.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,8 +65,9 @@ export class Brain {
   private vectorStore: VectorStore | null = null;
   private embeddingProvider: any = null;
   private repoGraph: RepoGraph | null = null;
+  public memoryManager: MemoryManager | null = null;
 
-  constructor(repoRoot: string, config: BridgeConfig, sync: GitSync, repoGraph?: RepoGraph) {
+  constructor(repoRoot: string, config: BridgeConfig, sync: GitSync, repoGraph?: RepoGraph, memoryManagerOptions?: MemoryManagerOptions) {
     this.repoRoot = repoRoot;
     this.config = config;
     this.sync = sync;
@@ -79,6 +86,16 @@ export class Brain {
           console.error("[brain] Failed to build repo graph:", error);
         }
       });
+    }
+
+    // Initialize memory manager (optional)
+    if (memoryManagerOptions !== undefined && memoryManagerOptions !== false) {
+      this.memoryManager = new MemoryManager(this, memoryManagerOptions);
+    } else if (memoryManagerOptions === undefined) {
+      // Default: enabled with default options
+      this.memoryManager = new MemoryManager(this, {});
+    } else {
+      this.memoryManager = null;
     }
   }
 
