@@ -270,6 +270,31 @@ export class GraphDB {
   }
 
   /**
+   * Get all nodes in the database.
+   */
+  async getAllNodes(): Promise<GraphNode[]> {
+    if (!this.initialized) await this.initialize();
+    const db = this.ensureDb();
+
+    const rows = db.prepare(`
+      SELECT id, type, name, file, start_line, end_line, docs, signature
+      FROM graph_nodes
+      ORDER BY file, start_line
+    `).all() as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      name: r.name,
+      file: r.file,
+      startLine: r.start_line ?? undefined,
+      endLine: r.end_line ?? undefined,
+      docs: r.docs ?? undefined,
+      signature: r.signature ?? undefined,
+    }));
+  }
+
+  /**
    * Get call graph for a function (what it calls).
    */
   async getCallGraph(functionId: string): Promise<string[]> {

@@ -185,6 +185,13 @@ export class RepoGraph {
     this.db.close();
   }
 
+  /**
+   * Get the underlying GraphDB instance (for advanced usage).
+   */
+  getDB() {
+    return this.db;
+  }
+
   // ─── Private Helpers ─────────────────────────────────────────────────────
 
   /**

@@ -398,6 +398,32 @@ async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerC
       };
     }
 
+    case "bridge/repoMap": {
+      if (!ctx.repoGraph) {
+        return { error: "Repo graph not available" };
+      }
+      const maxTokens = typeof p.maxTokens === "number" ? p.maxTokens : 1024;
+      const focusFiles = p.focusFiles as string[] | undefined;
+      const excludePatterns = p.excludePatterns as string[] | undefined;
+
+      // Build exclude regex patterns if provided
+      const patterns = excludePatterns?.map(pat => new RegExp(pat));
+
+      const { RepoMapGenerator } = await import("../graph/repo-map.js");
+      const generator = new RepoMapGenerator(ctx.repoGraph.getDB());
+
+      const map = await generator.generate({
+        maxTokens,
+        focusFiles,
+        excludePatterns: patterns,
+      });
+
+      return {
+        map,
+        estimatedTokens: generator.estimateTokens(map),
+      };
+    }
+
     default:
       throw Object.assign(new Error(`Unknown bridge method: ${method}`), { code: -32601 });
   }
