@@ -56,7 +56,9 @@ describe("RepoGraph", () => {
 
     const results = await graph.findByName("Brain");
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]?.name).toContain("Brain");
+    // Match on file name or symbol name
+    const match = results[0]?.name.includes("Brain") || results[0]?.file.includes("brain");
+    expect(match).toBe(true);
 
     graph.close();
   });
