@@ -94,6 +94,13 @@ export class LLMRouter {
   private costs: CostRecord[] = [];
   private maxCostRecords: number;
 
+  // ─── Deduplication & concurrency ─────────────────────────────────────────
+  private inFlightRequests = new Map<string, Promise<ChatResponse>>();
+  private lastStatusQueryTime = 0;
+  private activeRequests = 0;
+  private readonly maxConcurrency = 10;
+  private readonly statusDebounceMs = 100;
+
   constructor(config: LLMRouterConfig) {
     if (config.providers.deepseek) {
       this.providers.push(new DeepSeekProvider({
@@ -182,30 +189,57 @@ export class LLMRouter {
 
   /**
    * Send a chat request, trying fallback models on failure.
+   * Deduplicates identical in-flight requests and enforces concurrency limits.
    */
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResponse> {
     const model = options?.model ?? this.defaultModel;
+
+    // ── Request deduplication ────────────────────────────────────────────────
+    const dedupKey = this.computeDedupKey(messages, options);
+    const existing = this.inFlightRequests.get(dedupKey);
+    if (existing) {
+      return existing;
+    }
+
+    // ── Concurrency control (backpressure) ──────────────────────────────────
+    if (this.activeRequests >= this.maxConcurrency) {
+      throw new Error(
+        `LLM concurrency limit reached (${this.maxConcurrency} active requests). ` +
+        `Retry later.`
+      );
+    }
+
     const modelsToTry = [model, ...this.fallbackModels.filter((m) => m !== model)];
     const errors: Error[] = [];
 
-    for (const tryModel of modelsToTry) {
-      const provider = this.findProvider(tryModel);
-      if (!provider) continue;
-
+    const promise = (async () => {
+      this.activeRequests++;
       try {
-        const response = await provider.chat(messages, { ...options, model: tryModel });
-        this.recordCost(tryModel, provider.name, response.usage, true);
-        return response;
-      } catch (err) {
-        errors.push(err instanceof Error ? err : new Error(String(err)));
-        // Record the failed attempt
-        this.recordCost(tryModel, provider.name, { inputTokens: 0, outputTokens: 0 }, false);
-        continue;
-      }
-    }
+        for (const tryModel of modelsToTry) {
+          const provider = this.findProvider(tryModel);
+          if (!provider) continue;
 
-    const errorMessages = errors.map((e) => e.message).join('; ');
-    throw new Error(`All providers failed for model "${model}": ${errorMessages}`);
+          try {
+            const response = await provider.chat(messages, { ...options, model: tryModel });
+            this.recordCost(tryModel, provider.name, response.usage, true);
+            return response;
+          } catch (err) {
+            errors.push(err instanceof Error ? err : new Error(String(err)));
+            this.recordCost(tryModel, provider.name, { inputTokens: 0, outputTokens: 0 }, false);
+            continue;
+          }
+        }
+
+        const errorMessages = errors.map((e) => e.message).join('; ');
+        throw new Error(`All providers failed for model "${model}": ${errorMessages}`);
+      } finally {
+        this.activeRequests--;
+        this.inFlightRequests.delete(dedupKey);
+      }
+    })();
+
+    this.inFlightRequests.set(dedupKey, promise);
+    return promise;
   }
 
   // ─── Chat (streaming) ──────────────────────────────────────────────────────
@@ -286,6 +320,56 @@ export class LLMRouter {
 
   resetCosts(): void {
     this.costs = [];
+  }
+
+  // ─── Dedup helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Compute a deduplication key from messages + options.
+   * Identical prompt+model combinations get the same key.
+   */
+  private computeDedupKey(messages: ChatMessage[], options?: ChatOptions): string {
+    const model = options?.model ?? this.defaultModel;
+    const content = messages.map((m) => `${m.role}:${m.content}`).join('|');
+    return `${model}:${content.length}:${this.simpleHash(content)}`;
+  }
+
+  /**
+   * Simple, fast string hash (djb2). Not cryptographic — just for dedup keys.
+   */
+  private simpleHash(str: string): number {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) + hash + str.charCodeAt(i)) & 0x7fffffff;
+    }
+    return hash;
+  }
+
+  /**
+   * Check if a status query should be debounced.
+   * Returns true if the query should proceed, false if it should be skipped.
+   */
+  shouldAllowStatusQuery(): boolean {
+    const now = Date.now();
+    if (now - this.lastStatusQueryTime < this.statusDebounceMs) {
+      return false;
+    }
+    this.lastStatusQueryTime = now;
+    return true;
+  }
+
+  /**
+   * Get the number of currently in-flight requests.
+   */
+  getActiveRequestCount(): number {
+    return this.activeRequests;
+  }
+
+  /**
+   * Get the number of deduplicated (shared) requests currently in flight.
+   */
+  getDedupCount(): number {
+    return this.inFlightRequests.size;
   }
 
   private recordCost(
