@@ -115,6 +115,7 @@ import { createPublishCommand } from "./commands/publish.js";
 import { createLearnCommand } from "./commands/learn.js";
 import { createWebhooksCommand } from "./commands/webhooks.js";
 import { createNotifyCommand } from "./commands/notify.js";
+import { createOnboardCommand } from "./commands/onboard.js";
 
 const VERSION = "0.1.0";
 
@@ -215,6 +216,9 @@ export function createCLI(): Command {
 
   // Notify command
   program.addCommand(createNotifyCommand());
+
+  // Onboard command
+  program.addCommand(createOnboardCommand());
 
   return program;
 }
