@@ -17,6 +17,8 @@ export interface CompiledSoul {
   greeting: string;
   tone: 'formal' | 'casual' | 'professional' | 'friendly' | 'custom';
   version: string;
+  name: string;
+  emoji: string;
 }
 
 interface FrontmatterData {
@@ -50,6 +52,8 @@ export class SoulCompiler {
       greeting,
       tone,
       version: frontmatter.version ?? '0.0',
+      name: frontmatter.name ?? '',
+      emoji: (typeof frontmatter.emoji === 'string' ? frontmatter.emoji : '') || '\u{1F9E0}',
     };
   }
 

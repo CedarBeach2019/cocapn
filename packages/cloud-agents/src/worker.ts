@@ -108,6 +108,8 @@ interface SoulStatusInfo {
   capabilities: number;
   greeting: string;
   publicPromptLength: number;
+  name: string;
+  emoji: string;
 }
 
 interface BrainHealthInfo {
@@ -303,6 +305,8 @@ async function handleAgentStatus(env: Env, startTime: number): Promise<Response>
       capabilities: compiled.capabilities.length,
       greeting: compiled.greeting,
       publicPromptLength: compiled.publicSystemPrompt.length,
+      name: compiled.name,
+      emoji: compiled.emoji,
     },
     brain,
     uptime: Math.floor((Date.now() - startTime) / 1000),

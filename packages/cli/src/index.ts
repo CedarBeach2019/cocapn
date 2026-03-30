@@ -5,6 +5,7 @@
  *   cocapn setup [dir]         — Interactive onboarding wizard
  *   cocapn init [dir]          — Alias for setup
  *   cocapn start               — Start the bridge
+ *   cocapn serve               — Serve web UI locally
  *   cocapn chat                — Interactive terminal chat
  *   cocapn status              — Show bridge status
  *   cocapn deploy              — Deploy to Cloudflare Workers
@@ -69,6 +70,8 @@ import { createLogsCommand } from "./commands/logs.js";
 import { createDoctorCommand } from "./commands/doctor.js";
 import { createUpgradeCommand } from "./commands/upgrade.js";
 import { createResetCommand } from "./commands/reset.js";
+import { createServeCommand } from "./commands/serve.js";
+import { createBackupCommand } from "./commands/backup.js";
 
 const VERSION = "0.1.0";
 
@@ -142,6 +145,9 @@ export function createCLI(): Command {
 
   // Reset command
   program.addCommand(createResetCommand());
+
+  // Serve command
+  program.addCommand(createServeCommand());
 
   return program;
 }
