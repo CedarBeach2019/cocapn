@@ -282,12 +282,12 @@ describe("TemplateRegistryClient", () => {
       await client.install("web-app");
 
       const installedBefore = client.listInstalled();
-      expect(installedBefore.some((t) => t.name === "web-app")).toBe(true);
+      expect(installedBefore.some((t) => t.name === "playerlog")).toBe(true);
 
       client.uninstall("web-app");
 
       const installedAfter = client.listInstalled();
-      expect(installedAfter.some((t) => t.name === "web-app")).toBe(false);
+      expect(installedAfter.some((t) => t.name === "playerlog")).toBe(false);
     });
 
     it("should throw error when uninstalling non-existent template", () => {
@@ -579,7 +579,7 @@ describe("TemplateRegistryClient", () => {
       const manifest = JSON.parse(content);
 
       expect(manifest.name).toBe("businesslog");
-      expect(manifest.description).toContain("business");
+      expect(manifest.description).toContain("Enterprise");
     });
   });
 

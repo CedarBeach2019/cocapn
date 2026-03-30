@@ -78,7 +78,7 @@ export class ApproachGenerator {
   private options: ApproachGeneratorOptions;
   private mockResponse: MockLLMResponse | null = null;
 
-  constructor(options: ApproachGeneratorOptions) {
+  constructor(options: ApproachGeneratorOptions = {}) {
     this.options = {
       model: options.model || 'deepseek-chat',
       maxApproaches: options.maxApproaches || 3,
