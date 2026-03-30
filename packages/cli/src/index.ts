@@ -24,6 +24,9 @@
  *   cocapn export chat <id>    — Export chat history
  *   cocapn export wiki         — Export wiki as markdown
  *   cocapn export knowledge    — Export knowledge entries
+ *   cocapn sync                — Sync repos (private + public)
+ *   cocapn sync status         — Show sync status
+ *   cocapn sync pull           — Pull from remotes
  *   cocapn version             — Show version
  */
 
@@ -49,6 +52,7 @@ import { createTelemetryCommand } from "./commands/telemetry.js";
 import { createChatCommand } from "./commands/chat.js";
 import { createMemoryCommand } from "./commands/memory.js";
 import { createExportCommand } from "./commands/export.js";
+import { createSyncCommand } from "./commands/sync.js";
 
 const VERSION = "0.1.0";
 
@@ -72,6 +76,9 @@ export function createCLI(): Command {
 
   // Export commands
   program.addCommand(createExportCommand());
+
+  // Sync commands
+  program.addCommand(createSyncCommand());
 
   // Deploy commands
   program.addCommand(createDeployCommand());

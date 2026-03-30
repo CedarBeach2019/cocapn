@@ -1,179 +1,195 @@
 /**
- * Plugin Installer — Install/uninstall/list cocapn plugins via npm
+ * Plugin Installer — Local plugin management for cocapn/plugins/
+ *
+ * Plugins live in <project>/cocapn/plugins/<name>/ with a plugin.json manifest.
+ * Each plugin can be enabled or disabled via cocapn/plugins/enabled.json.
  */
 
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-import { mkdir, cp, rm, readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, rm, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { homedir } from "node:os";
+import { join } from "node:path";
 
-const execAsync = promisify(exec);
+export interface PluginManifest {
+  name: string;
+  version: string;
+  description: string;
+  main?: string;
+  skills?: Array<{ name: string; entry: string; type: string }>;
+  permissions?: string[];
+}
 
 export interface InstalledPlugin {
   name: string;
   version: string;
-  path: string;
   description: string;
-  author: string;
-  skills: string[];
-  permissions: string[];
+  main: string;
+  enabled: boolean;
+  path: string;
 }
 
 /**
- * Get the global plugins directory: ~/.cocapn/plugins/
+ * Get the plugins directory for a project: <projectRoot>/cocapn/plugins/
  */
-export function getPluginDir(): string {
-  return join(homedir(), ".cocapn", "plugins");
+export function getPluginDir(projectRoot: string = process.cwd()): string {
+  return join(projectRoot, "cocapn", "plugins");
 }
 
 /**
- * Validate a cocapn-plugin.json manifest.
- * Returns the parsed manifest or throws.
+ * Get the path to the enabled plugins state file.
  */
-export async function validateManifest(
-  manifestPath: string,
-): Promise<Record<string, unknown>> {
+export function getEnabledFilePath(projectRoot: string = process.cwd()): string {
+  return join(projectRoot, "cocapn", "plugins", "enabled.json");
+}
+
+/**
+ * Read the set of enabled plugin names.
+ */
+export async function loadEnabledSet(projectRoot: string = process.cwd()): Promise<Set<string>> {
+  const path = getEnabledFilePath(projectRoot);
+  if (!existsSync(path)) return new Set();
+  try {
+    const raw = await readFile(path, "utf-8");
+    const arr = JSON.parse(raw) as string[];
+    return new Set(arr);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Write the set of enabled plugin names.
+ */
+async function saveEnabledSet(enabled: Set<string>, projectRoot: string): Promise<void> {
+  const path = getEnabledFilePath(projectRoot);
+  await writeFile(path, JSON.stringify([...enabled], null, 2), "utf-8");
+}
+
+/**
+ * Validate a plugin.json manifest.
+ */
+export async function validateManifest(manifestPath: string): Promise<PluginManifest> {
   if (!existsSync(manifestPath)) {
-    throw new Error(`cocapn-plugin.json not found at ${manifestPath}`);
+    throw new Error(`plugin.json not found at ${manifestPath}`);
   }
 
   const raw = await readFile(manifestPath, "utf-8");
-  const manifest = JSON.parse(raw) as Record<string, unknown>;
+  const data = JSON.parse(raw) as Record<string, unknown>;
 
-  if (!manifest["name"] || typeof manifest["name"] !== "string") {
+  if (!data["name"] || typeof data["name"] !== "string") {
     throw new Error("Invalid manifest: missing or invalid 'name'");
   }
-  if (!manifest["version"] || typeof manifest["version"] !== "string") {
+  if (!data["version"] || typeof data["version"] !== "string") {
     throw new Error("Invalid manifest: missing or invalid 'version'");
   }
-  if (!manifest["skills"] || !Array.isArray(manifest["skills"])) {
-    throw new Error("Invalid manifest: missing or invalid 'skills' array");
-  }
-  if (!manifest["permissions"] || !Array.isArray(manifest["permissions"])) {
-    throw new Error("Invalid manifest: missing or invalid 'permissions' array");
+  if (!data["description"] || typeof data["description"] !== "string") {
+    throw new Error("Invalid manifest: missing or invalid 'description'");
   }
 
-  return manifest;
+  return {
+    name: data["name"] as string,
+    version: data["version"] as string,
+    description: data["description"] as string,
+    main: (data["main"] as string) || "index.js",
+    skills: data["skills"] as PluginManifest["skills"],
+    permissions: data["permissions"] as string[],
+  };
 }
 
 /**
- * Install a plugin from npm.
- *
- * Steps:
- * 1. npm install <name> in a temp dir to fetch the package
- * 2. Read cocapn-plugin.json from node_modules/<name>/
- * 3. Validate manifest
- * 4. Copy plugin to ~/.cocapn/plugins/<name>/
- * 5. Clean up temp install
+ * Install a plugin locally: create cocapn/plugins/<name>/plugin.json from a manifest.
  */
-export async function installPlugin(name: string): Promise<InstalledPlugin> {
-  const pluginDir = getPluginDir();
+export async function installPlugin(
+  name: string,
+  projectRoot: string = process.cwd(),
+): Promise<InstalledPlugin> {
+  const pluginDir = getPluginDir(projectRoot);
   await mkdir(pluginDir, { recursive: true });
 
-  // Use a temp staging directory for npm install
-  const stagingDir = join(homedir(), ".cocapn", ".staging", name);
-  await mkdir(stagingDir, { recursive: true });
+  const targetDir = join(pluginDir, name);
+  const manifestPath = join(targetDir, "plugin.json");
 
-  try {
-    // npm install into staging
-    console.log(`Installing ${name} from npm...`);
-    await execAsync(`npm install --prefix "${stagingDir}" "${name}"`, {
-      timeout: 60000,
-    });
-
-    // Read manifest
-    const manifestPath = join(stagingDir, "node_modules", name, "cocapn-plugin.json");
-    const manifest = await validateManifest(manifestPath);
-
-    const pkgJsonPath = join(stagingDir, "node_modules", name, "package.json");
-    let pkgJson: Record<string, unknown> = {};
-    if (existsSync(pkgJsonPath)) {
-      const raw = await readFile(pkgJsonPath, "utf-8");
-      pkgJson = JSON.parse(raw) as Record<string, unknown>;
-    }
-
-    const version = String(manifest["version"] || pkgJson["version"] || "unknown");
-    const description = String(manifest["description"] || pkgJson["description"] || "");
-    const author = String(manifest["author"] || pkgJson["author"] || "");
-    const skills = (manifest["skills"] as Array<{ name: string }>).map((s) => s.name);
-    const permissions = (manifest["permissions"] as string[]);
-
-    // Copy to plugin dir
-    const targetDir = join(pluginDir, name);
-    if (existsSync(targetDir)) {
-      await rm(targetDir, { recursive: true, force: true });
-    }
-    await cp(join(stagingDir, "node_modules", name), targetDir, { recursive: true });
-
-    return {
-      name: String(manifest["name"]),
-      version,
-      path: targetDir,
-      description,
-      author,
-      skills,
-      permissions,
-    };
-  } finally {
-    // Clean up staging
-    await rm(stagingDir, { recursive: true, force: true });
-    // Also clean parent staging dir if empty
-    try {
-      await rm(join(homedir(), ".cocapn", ".staging"), { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+  if (existsSync(manifestPath)) {
+    throw new Error(`Plugin already installed: ${name}`);
   }
+
+  await mkdir(targetDir, { recursive: true });
+
+  // Create a minimal manifest
+  const manifest: PluginManifest = {
+    name,
+    version: "0.1.0",
+    description: `Plugin: ${name}`,
+    main: "index.js",
+  };
+
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+
+  // Enable by default
+  const enabled = await loadEnabledSet(projectRoot);
+  enabled.add(name);
+  await saveEnabledSet(enabled, projectRoot);
+
+  return {
+    name,
+    version: manifest.version,
+    description: manifest.description,
+    main: manifest.main,
+    enabled: true,
+    path: targetDir,
+  };
 }
 
 /**
- * Uninstall a plugin by removing its directory.
+ * Remove a plugin: delete its directory and remove from enabled set.
  */
-export async function uninstallPlugin(name: string): Promise<void> {
-  const targetDir = join(getPluginDir(), name);
+export async function removePlugin(
+  name: string,
+  projectRoot: string = process.cwd(),
+): Promise<void> {
+  const targetDir = join(getPluginDir(projectRoot), name);
 
   if (!existsSync(targetDir)) {
     throw new Error(`Plugin not installed: ${name}`);
   }
 
   await rm(targetDir, { recursive: true, force: true });
+
+  const enabled = await loadEnabledSet(projectRoot);
+  enabled.delete(name);
+  await saveEnabledSet(enabled, projectRoot);
 }
 
 /**
- * List all installed plugins by scanning ~/.cocapn/plugins/.
+ * List all installed plugins with their enabled state.
  */
-export async function listPlugins(): Promise<InstalledPlugin[]> {
-  const pluginDir = getPluginDir();
+export async function listPlugins(
+  projectRoot: string = process.cwd(),
+): Promise<InstalledPlugin[]> {
+  const pluginDir = getPluginDir(projectRoot);
 
   if (!existsSync(pluginDir)) {
     return [];
   }
 
+  const enabled = await loadEnabledSet(projectRoot);
   const entries = await readdir(pluginDir, { withFileTypes: true });
   const plugins: InstalledPlugin[] = [];
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
 
-    const manifestPath = join(pluginDir, entry.name, "cocapn-plugin.json");
+    const manifestPath = join(pluginDir, entry.name, "plugin.json");
     if (!existsSync(manifestPath)) continue;
 
     try {
       const manifest = await validateManifest(manifestPath);
-
-      const skills = (manifest["skills"] as Array<{ name: string }>).map((s) => s.name);
-      const permissions = (manifest["permissions"] as string[]);
-
       plugins.push({
-        name: String(manifest["name"]),
-        version: String(manifest["version"]),
+        name: manifest.name,
+        version: manifest.version,
+        description: manifest.description,
+        main: manifest.main,
+        enabled: enabled.has(manifest.name),
         path: join(pluginDir, entry.name),
-        description: String(manifest["description"] || ""),
-        author: String(manifest["author"] || ""),
-        skills,
-        permissions,
       });
     } catch {
       // Skip invalid manifests
@@ -184,9 +200,35 @@ export async function listPlugins(): Promise<InstalledPlugin[]> {
 }
 
 /**
- * Get details about an installed plugin.
+ * Enable a plugin.
  */
-export async function getInstalledPlugin(name: string): Promise<InstalledPlugin | null> {
-  const plugins = await listPlugins();
-  return plugins.find((p) => p.name === name) ?? null;
+export async function enablePlugin(
+  name: string,
+  projectRoot: string = process.cwd(),
+): Promise<void> {
+  const targetDir = join(getPluginDir(projectRoot), name);
+  if (!existsSync(targetDir)) {
+    throw new Error(`Plugin not installed: ${name}`);
+  }
+
+  const enabled = await loadEnabledSet(projectRoot);
+  enabled.add(name);
+  await saveEnabledSet(enabled, projectRoot);
+}
+
+/**
+ * Disable a plugin.
+ */
+export async function disablePlugin(
+  name: string,
+  projectRoot: string = process.cwd(),
+): Promise<void> {
+  const targetDir = join(getPluginDir(projectRoot), name);
+  if (!existsSync(targetDir)) {
+    throw new Error(`Plugin not installed: ${name}`);
+  }
+
+  const enabled = await loadEnabledSet(projectRoot);
+  enabled.delete(name);
+  await saveEnabledSet(enabled, projectRoot);
 }

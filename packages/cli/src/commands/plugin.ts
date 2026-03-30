@@ -2,20 +2,24 @@
  * cocapn plugin — Plugin management commands
  *
  * Usage:
- *   cocapn plugin search <query>   — search npm for cocapn-plugin-* packages
- *   cocapn plugin install <name>   — npm install + register with bridge
- *   cocapn plugin uninstall <name> — npm uninstall + unregister
- *   cocapn plugin list             — list installed plugins
- *   cocapn plugin info <name>      — show plugin details
+ *   cocapn plugin list              — list installed plugins
+ *   cocapn plugin list --json       — list as JSON
+ *   cocapn plugin install <name>    — install a plugin
+ *   cocapn plugin remove <name>     — remove a plugin
+ *   cocapn plugin enable <name>     — enable a plugin
+ *   cocapn plugin disable <name>    — disable a plugin
  */
 
 import { Command } from "commander";
-import { searchPlugins, getPluginInfo } from "../lib/npm-search.js";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import * as readline from "node:readline";
 import {
-  installPlugin,
-  uninstallPlugin,
   listPlugins,
-  getInstalledPlugin,
+  installPlugin,
+  removePlugin,
+  enablePlugin,
+  disablePlugin,
   getPluginDir,
 } from "../lib/plugin-installer.js";
 
@@ -35,93 +39,47 @@ const green = (s: string) => `${colors.green}${s}${colors.reset}`;
 const cyan = (s: string) => `${colors.cyan}${s}${colors.reset}`;
 const yellow = (s: string) => `${colors.yellow}${s}${colors.reset}`;
 const dim = (s: string) => `${colors.dim}${s}${colors.reset}`;
+const red = (s: string) => `${colors.red}${s}${colors.reset}`;
+
+function requireCocapnDir(): string {
+  const cocapnDir = join(process.cwd(), "cocapn");
+  if (!existsSync(cocapnDir)) {
+    console.error(red("Error:"), " No cocapn/ directory found. Run cocapn setup first.");
+    process.exit(1);
+  }
+  return process.cwd();
+}
+
+async function confirmPrompt(question: string): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(`${yellow("?")} ${question} (y/N) `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === "y");
+    });
+  });
+}
 
 export function createPluginCommand(): Command {
   const cmd = new Command("plugin")
     .description("Manage cocapn plugins");
 
-  // ── search ──────────────────────────────────────────────────────────────────
-
-  cmd
-    .command("search <query>")
-    .description("Search npm for cocapn-plugin packages")
-    .action(async (query: string) => {
-      try {
-        const results = await searchPlugins(query);
-
-        if (results.length === 0) {
-          console.log(yellow("No plugins found"));
-          return;
-        }
-
-        console.log(cyan("Plugins matching") + ` ${bold(query)}\n`);
-
-        const nameWidth = Math.max(...results.map((r) => r.name.length));
-
-        for (const result of results) {
-          const name = result.name.padEnd(nameWidth);
-          const version = dim(`v${result.version}`);
-          const author = result.author ? dim(result.author) : "";
-
-          console.log(`  ${green(name)}  ${version}  ${author}`);
-          if (result.description) {
-            const desc = result.description.length > 70
-              ? result.description.slice(0, 67) + "..."
-              : result.description;
-            console.log(`    ${colors.gray}${desc}${colors.reset}`);
-          }
-        }
-
-        console.log();
-      } catch (err) {
-        console.error(yellow("Search failed:"), err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  // ── install ─────────────────────────────────────────────────────────────────
-
-  cmd
-    .command("install <name>")
-    .description("Install a plugin from npm")
-    .action(async (name: string) => {
-      try {
-        const plugin = await installPlugin(name);
-        console.log(green(`Installed`) + ` ${bold(plugin.name)}` + ` ${dim(`v${plugin.version}`)}`);
-        console.log(`  ${dim(plugin.description)}`);
-        console.log(`  ${dim("Skills:")} ${plugin.skills.map((s) => cyan(s)).join(", ") || dim("none")}`);
-        console.log(`  ${dim("Permissions:")} ${plugin.permissions.join(", ") || dim("none")}`);
-        console.log();
-        console.log(`  ${dim("Installed to")} ${dim(plugin.path)}`);
-      } catch (err) {
-        console.error(yellow("Install failed:"), err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  // ── uninstall ───────────────────────────────────────────────────────────────
-
-  cmd
-    .command("uninstall <name>")
-    .description("Uninstall a plugin")
-    .action(async (name: string) => {
-      try {
-        await uninstallPlugin(name);
-        console.log(green(`Uninstalled`) + ` ${bold(name)}`);
-      } catch (err) {
-        console.error(yellow("Uninstall failed:"), err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  // ── list ────────────────────────────────────────────────────────────────────
+  // ── list ──────────────────────────────────────────────────────────────────
 
   cmd
     .command("list")
     .description("List installed plugins")
-    .action(async () => {
+    .option("--json", "Output as JSON")
+    .action(async (options: { json?: boolean }) => {
+      requireCocapnDir();
+
       try {
         const plugins = await listPlugins();
+
+        if (options.json) {
+          console.log(JSON.stringify(plugins, null, 2));
+          return;
+        }
 
         if (plugins.length === 0) {
           console.log(yellow("No plugins installed"));
@@ -135,15 +93,12 @@ export function createPluginCommand(): Command {
 
         for (const plugin of plugins) {
           const name = plugin.name.padEnd(nameWidth);
+          const status = plugin.enabled ? green("enabled ") : red("disabled");
           const version = dim(`v${plugin.version}`);
-          const author = plugin.author ? dim(plugin.author) : "";
 
-          console.log(`  ${green(name)}  ${version}  ${author}`);
+          console.log(`  ${bold(name)}  ${status}  ${version}`);
           if (plugin.description) {
             console.log(`    ${colors.gray}${plugin.description}${colors.reset}`);
-          }
-          if (plugin.skills.length > 0) {
-            console.log(`    ${dim("Skills:")} ${plugin.skills.map((s) => cyan(s)).join(", ")}`);
           }
           console.log();
         }
@@ -153,69 +108,78 @@ export function createPluginCommand(): Command {
       }
     });
 
-  // ── info ────────────────────────────────────────────────────────────────────
+  // ── install ───────────────────────────────────────────────────────────────
 
   cmd
-    .command("info <name>")
-    .description("Show detailed info about a plugin")
-    .option("--remote", "Fetch info from npm registry instead of local install")
-    .action(async (name: string, options: { remote?: boolean }) => {
-      try {
-        if (options.remote) {
-          const info = await getPluginInfo(name);
-          console.log(bold(info.name) + ` ${dim(`v${info.version}`)}`);
-          console.log();
-          if (info.description) {
-            console.log(`  ${info.description}`);
-          }
-          if (info.author) {
-            console.log(`  ${dim("Author:")} ${info.author}`);
-          }
-          if (info.license) {
-            console.log(`  ${dim("License:")} ${info.license}`);
-          }
-          if (info.repository) {
-            console.log(`  ${dim("Repository:")} ${info.repository}`);
-          }
-          if (info.homepage) {
-            console.log(`  ${dim("Homepage:")} ${info.homepage}`);
-          }
-          if (info.keywords && info.keywords.length > 0) {
-            console.log(`  ${dim("Keywords:")} ${info.keywords.join(", ")}`);
-          }
-        } else {
-          const plugin = await getInstalledPlugin(name);
-          if (!plugin) {
-            console.error(yellow(`Plugin not installed: ${name}`));
-            console.log(dim(`  Use ${cyan("cocapn plugin info --remote <name>")} to check npm`));
-            process.exit(1);
-          }
+    .command("install <name>")
+    .description("Install a plugin")
+    .action(async (name: string) => {
+      requireCocapnDir();
 
-          console.log(bold(plugin.name) + ` ${dim(`v${plugin.version}`)}`);
-          console.log();
-          if (plugin.description) {
-            console.log(`  ${plugin.description}`);
-          }
-          if (plugin.author) {
-            console.log(`  ${dim("Author:")} ${plugin.author}`);
-          }
-          if (plugin.skills.length > 0) {
-            console.log(`  ${dim("Skills:")}`);
-            for (const skill of plugin.skills) {
-              console.log(`    ${green(skill)}`);
-            }
-          }
-          if (plugin.permissions.length > 0) {
-            console.log(`  ${dim("Permissions:")}`);
-            for (const perm of plugin.permissions) {
-              console.log(`    ${yellow(perm)}`);
-            }
-          }
-          console.log();
-          console.log(`  ${dim("Path:")} ${plugin.path}`);
-        }
+      try {
+        const plugin = await installPlugin(name);
+        console.log(green("Installed") + ` ${bold(plugin.name)}` + ` ${dim(`v${plugin.version}`)}`);
+        console.log(`  ${dim(plugin.description)}`);
+        console.log(`  ${dim("Path:")} ${dim(plugin.path)}`);
       } catch (err) {
-        console.error(yellow("Info failed:"), err instanceof Error ? err.message : String(err));
+        console.error(yellow("Install failed:"), err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+    });
+
+  // ── remove ────────────────────────────────────────────────────────────────
+
+  cmd
+    .command("remove <name>")
+    .description("Remove a plugin")
+    .action(async (name: string) => {
+      requireCocapnDir();
+
+      try {
+        const confirmed = await confirmPrompt(`Remove plugin "${name}"?`);
+        if (!confirmed) {
+          console.log(dim("Cancelled"));
+          return;
+        }
+
+        await removePlugin(name);
+        console.log(green("Removed") + ` ${bold(name)}`);
+      } catch (err) {
+        console.error(yellow("Remove failed:"), err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+    });
+
+  // ── enable ────────────────────────────────────────────────────────────────
+
+  cmd
+    .command("enable <name>")
+    .description("Enable a plugin")
+    .action(async (name: string) => {
+      requireCocapnDir();
+
+      try {
+        await enablePlugin(name);
+        console.log(green("Enabled") + ` ${bold(name)}`);
+      } catch (err) {
+        console.error(yellow("Enable failed:"), err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+    });
+
+  // ── disable ───────────────────────────────────────────────────────────────
+
+  cmd
+    .command("disable <name>")
+    .description("Disable a plugin")
+    .action(async (name: string) => {
+      requireCocapnDir();
+
+      try {
+        await disablePlugin(name);
+        console.log(yellow("Disabled") + ` ${bold(name)}`);
+      } catch (err) {
+        console.error(yellow("Disable failed:"), err instanceof Error ? err.message : String(err));
         process.exit(1);
       }
     });
