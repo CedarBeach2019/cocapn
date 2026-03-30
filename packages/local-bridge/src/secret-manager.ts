@@ -145,7 +145,7 @@ export class SecretManager {
   async addSecret(key: string, value: string): Promise<void> {
     const recipient = this.recipient ?? this.readRecipientsFile();
     if (!recipient) {
-      throw new Error("No public key configured. Run: cocapn-bridge secret init");
+      throw new Error("COCAPN-030: No public key configured - Initialize age encryption with: cocapn-bridge secret init");
     }
 
     const age       = await this.loadAgeModule();
@@ -172,7 +172,7 @@ export class SecretManager {
   async rotate(): Promise<{ newRecipient: string }> {
     // Ensure we can decrypt first
     if (!this.identity) await this.loadIdentity();
-    if (!this.identity) throw new Error("Cannot rotate: no current identity loaded");
+    if (!this.identity) throw new Error("COCAPN-031: Cannot rotate: no current identity loaded - Load your identity first with: cocapn-bridge secret load");
 
     // Decrypt all secrets into memory
     await this.loadSecretsDirectory();
@@ -316,7 +316,7 @@ export class SecretManager {
    */
   async encrypt(plaintext: string): Promise<Uint8Array> {
     const recipient = this.recipient ?? this.readRecipientsFile();
-    if (!recipient) throw new Error("No public key. Run: cocapn-bridge secret init");
+    if (!recipient) throw new Error("COCAPN-032: No public key - Initialize age encryption to encrypt secrets for fleet members: cocapn-bridge secret init");
     const age       = await this.loadAgeModule();
     const encrypter = new age.Encrypter();
     encrypter.addRecipient(recipient);
@@ -327,7 +327,7 @@ export class SecretManager {
    * Decrypt ciphertext with the current identity.
    */
   async decrypt(ciphertext: Uint8Array): Promise<string> {
-    if (!this.identity) throw new Error("No identity loaded. Run: loadIdentity()");
+    if (!this.identity) throw new Error("COCAPN-033: No identity loaded - Load your age identity with: cocapn-bridge secret load");
     const age       = await this.loadAgeModule();
     const decrypter = new age.Decrypter();
     decrypter.addIdentity(this.identity);

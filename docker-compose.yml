@@ -1,0 +1,46 @@
+services:
+  cocapn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cocapn
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./brain:/app/brain
+    env_file:
+      - .env
+    environment:
+      - COCAPN_MODE=local
+      - COCAPN_PORT=3100
+      - COCAPN_BRAIN_DIR=/app/brain
+      - DOCKER_CONTAINER=true
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  cocapn-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: cocapn-dev
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./brain:/app/brain
+      - ./packages:/app/packages
+    env_file:
+      - .env
+    environment:
+      - COCAPN_MODE=local
+      - COCAPN_PORT=3100
+      - COCAPN_BRAIN_DIR=/app/brain
+      - DOCKER_CONTAINER=true
+      - NODE_ENV=development
+    command: ["npx", "nodemon", "--watch", "packages", "packages/cli/bin/cocapn.js", "start"]

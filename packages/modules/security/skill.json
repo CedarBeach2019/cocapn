@@ -1,0 +1,44 @@
+{
+  "name": "security",
+  "version": "1.0.0",
+  "description": "Handle authentication and security operations",
+  "category": "security",
+  "triggers": ["auth", "login", "security", "encrypt", "decrypt", "verify", "certificate"],
+  "hot": true,
+  "steps": [
+    {
+      "action": "think",
+      "description": "Identify the security operation required",
+      "fallback": "Ask for clarification on security operation"
+    },
+    {
+      "action": "execute",
+      "description": "Perform the security operation (auth, encryption, etc.)",
+      "tool": "security",
+      "fallback": "Log security event for manual review"
+    },
+    {
+      "action": "write",
+      "description": "Record security event in audit log",
+      "tool": "brain",
+      "fallback": "Log to local security file"
+    }
+  ],
+  "examples": [
+    {
+      "input": "Encrypt this file",
+      "output": "Generate encryption key, encrypt file, store key securely"
+    },
+    {
+      "input": "Verify this signature",
+      "output": "Load certificate, verify signature, report validity"
+    }
+  ],
+  "tokenBudget": 550,
+  "tolerance": {
+    "network_failure": "error",
+    "invalid_input": "error",
+    "timeout": "error"
+  },
+  "module": "security"
+}

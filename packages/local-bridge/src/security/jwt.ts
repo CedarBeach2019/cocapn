@@ -85,7 +85,7 @@ export function verifyJwt(
   secret: string | Buffer
 ): JwtPayload {
   const parts = token.split(".");
-  if (parts.length !== 3) throw new Error("Invalid JWT: expected 3 parts");
+  if (parts.length !== 3) throw new Error("COCAPN-001: Invalid JWT: expected 3 parts - Ensure your fleet JWT is complete and not truncated. Regenerate with: cocapn-bridge token generate");
 
   const [headerB64, bodyB64, sigB64] = parts as [string, string, string];
 
@@ -98,22 +98,22 @@ export function verifyJwt(
     actualSig.length !== expectedSig.length ||
     !timingSafeEqual(expectedSig, actualSig)
   ) {
-    throw new Error("Invalid JWT: bad signature");
+    throw new Error("COCAPN-002: Invalid JWT: bad signature - Your fleet JWT may be corrupted or the secret changed. Regenerate with: cocapn-bridge token generate");
   }
 
   let payload: JwtPayload;
   try {
     payload = JSON.parse(decodeB64url(bodyB64).toString("utf8")) as JwtPayload;
   } catch {
-    throw new Error("Invalid JWT: malformed payload");
+    throw new Error("COCAPN-003: Invalid JWT: malformed payload - JWT payload is corrupted. Regenerate with: cocapn-bridge token generate");
   }
 
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp < now) {
-    throw new Error(`JWT expired at ${new Date(payload.exp * 1000).toISOString()}`);
+    throw new Error(`COCAPN-004: JWT expired at ${new Date(payload.exp * 1000).toISOString()} - Your fleet token has expired. Generate a new one with: cocapn-bridge token generate`);
   }
   if (payload.iss !== "cocapn") {
-    throw new Error(`Invalid JWT issuer: ${payload.iss}`);
+    throw new Error(`COCAPN-005: Invalid JWT issuer: ${payload.iss} - JWT must be issued by "cocapn". Regenerate with: cocapn-bridge token generate`);
   }
 
   return payload;

@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cocapn.ai/schemas/skill-cartridge.json",
+  "title": "CocapnSkillCartridge",
+  "description": "A skill cartridge defines a capability that can be loaded into agent context. Cartridges are lightweight (~500-1000 tokens) and describe how to perform specific tasks.",
+  "type": "object",
+  "required": ["name", "version", "triggers", "steps"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique skill identifier (kebab-case)",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version (semver)",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "One-line description (~50 chars)",
+      "maxLength": 100
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Keywords that activate this skill (lowercase, no special chars)",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "minItems": 1,
+      "maxItems": 20
+    },
+    "category": {
+      "type": "string",
+      "description": "High-level category for decision tree navigation",
+      "enum": ["code", "research", "communication", "operations", "security", "analysis"],
+      "default": "code"
+    },
+    "steps": {
+      "type": "array",
+      "description": "Step-by-step procedure for executing this skill",
+      "items": {
+        "type": "object",
+        "required": ["action", "description"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Type of action to perform",
+            "enum": ["read", "write", "execute", "search", "think", "delegate", "respond"]
+          },
+          "description": {
+            "type": "string",
+            "description": "What this step does",
+            "maxLength": 200
+          },
+          "tool": {
+            "type": "string",
+            "description": "Optional: specific tool to use (e.g., 'git', 'npm', 'bash')"
+          },
+          "fallback": {
+            "type": "string",
+            "description": "What to do if this step fails",
+            "maxLength": 200
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 20
+    },
+    "examples": {
+      "type": "array",
+      "description": "Example inputs and outputs for this skill",
+      "items": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "Example user input or trigger"
+          },
+          "output": {
+            "type": "string",
+            "description": "Expected result or action"
+          }
+        },
+        "required": ["input"]
+      },
+      "maxItems": 10
+    },
+    "tokenBudget": {
+      "type": "integer",
+      "description": "Approximate tokens when loaded (for budget management)",
+      "default": 500,
+      "minimum": 100,
+      "maximum": 5000
+    },
+    "tolerance": {
+      "type": "object",
+      "description": "How to handle different failure modes",
+      "properties": {
+        "network_failure": {
+          "type": "string",
+          "description": "Action when network operations fail",
+          "enum": ["retry", "skip", "fallback"],
+          "default": "retry"
+        },
+        "invalid_input": {
+          "type": "string",
+          "description": "Action when input validation fails",
+          "enum": ["retry", "error", "fallback"],
+          "default": "error"
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Action when operations timeout",
+          "enum": ["retry", "skip", "fallback"],
+          "default": "retry"
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Other skills that must be loaded before this one",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "uniqueItems": true,
+      "maxItems": 10
+    },
+    "hot": {
+      "type": "boolean",
+      "description": "If true, always loaded in agent context (frequently used)",
+      "default": false
+    },
+    "module": {
+      "type": "string",
+      "description": "Optional: module this skill belongs to (for organization)",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    }
+  }
+}

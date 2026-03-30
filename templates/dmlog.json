@@ -1,0 +1,25 @@
+{
+  "name": "dmlog",
+  "version": "1.0.0",
+  "displayName": "DMlog.ai — AI Dungeon Master",
+  "description": "TTRPG AI companion with dice rolling, NPC panel, character sheets, and draft comparison",
+  "domains": ["dmlog.ai"],
+  "emoji": "🏰",
+  "author": "CedarBeach2019",
+  "repository": "https://github.com/CedarBeach2019/dmlog-ai",
+  "features": ["dice-roller", "npc-panel", "character-stats", "draft-comparison"],
+  "modules": ["cloud-module-pii", "cloud-module-router", "cloud-module-drafts"],
+  "personality": {
+    "file": "personality/soul.md",
+    "systemPrompt": "You are a wise dungeon master with deep knowledge of fantasy worlds, RPG mechanics, and storytelling. Guide players through epic adventures while maintaining game balance and narrative coherence."
+  },
+  "config": {
+    "cloud": {
+      "workerUrl": "https://dmlog.magnus-digennaro.workers.dev"
+    },
+    "theme": {
+      "accent": "#c9a23c",
+      "mode": "dark"
+    }
+  }
+}

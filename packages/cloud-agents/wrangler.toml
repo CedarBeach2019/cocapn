@@ -10,14 +10,9 @@ class_name = "AdmiralDO"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["AdmiralDO"]
+new_sqlite_classes = ["AdmiralDO"]
 
-# Secrets (set via `wrangler secret put`):
-#   GITHUB_PAT    — GitHub PAT with repo:read scope
-#   CF_API_TOKEN  — Cloudflare API token (for self-referential calls)
-#
-# Environment variables (non-secret):
 [vars]
-PRIVATE_REPO  = ""   # e.g. alice/alice-brain
-PUBLIC_REPO   = ""   # e.g. alice/alice.makerlog.ai
+PRIVATE_REPO  = ""
+PUBLIC_REPO   = ""
 BRIDGE_MODE   = "cloud"

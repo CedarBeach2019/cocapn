@@ -12,6 +12,25 @@ import { resolve } from "path";
 import { SecretManager } from "../secret-manager.js";
 import { maskSecrets } from "../security/audit.js";
 
+// ─── Colours (no deps) ───────────────────────────────────────────────────────
+
+const C = {
+  reset:  "\x1b[0m",
+  bold:   "\x1b[1m",
+  dim:    "\x1b[2m",
+  green:  "\x1b[32m",
+  cyan:   "\x1b[36m",
+  yellow: "\x1b[33m",
+  red:    "\x1b[31m",
+};
+
+const green  = (s: string) => `${C.green}${s}${C.reset}`;
+const cyan   = (s: string) => `${C.cyan}${s}${C.reset}`;
+const yellow = (s: string) => `${C.yellow}${s}${C.reset}`;
+const red    = (s: string) => `${C.red}${s}${C.reset}`;
+const bold   = (s: string) => `${C.bold}${s}${C.reset}`;
+const dim    = (s: string) => `${C.dim}${s}${C.reset}`;
+
 export function buildSecretCommand(): Command {
   const cmd = new Command("secret").description("Manage age-encrypted secrets");
 
@@ -25,12 +44,12 @@ export function buildSecretCommand(): Command {
       const mgr = new SecretManager(resolve(opts.repo));
       try {
         const { recipient } = await mgr.init();
-        console.log("\n✓ Age keypair generated");
-        console.log(`  Public key (recipient): ${recipient}`);
-        console.log("  Private key: stored in OS keychain (or ~/.config/cocapn/identity.age)");
-        console.log("\n  Share the public key with fleet members so they can encrypt secrets for you.");
+        console.log(`\n${green("✓")} Age keypair generated`);
+        console.log(`  ${cyan("Public key (recipient):")} ${recipient}`);
+        console.log(`  ${dim("Private key: stored in OS keychain (or ~/.config/cocapn/identity.age)")}`);
+        console.log(`\n  ${dim("Share the public key with fleet members so they can encrypt secrets for you.")}`);
       } catch (err) {
-        console.error("Error:", err instanceof Error ? err.message : String(err));
+        console.error(`${red("Error:")} ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });
@@ -46,9 +65,9 @@ export function buildSecretCommand(): Command {
       await mgr.loadIdentity();
       try {
         await mgr.addSecret(key, value);
-        console.log(`✓ Secret '${key}' encrypted and saved to secrets/${key}.age`);
+        console.log(`${green("✓")} Secret ${cyan(`'${key}'`)} encrypted and saved to ${dim(`secrets/${key}.age`)}`);
       } catch (err) {
-        console.error("Error:", err instanceof Error ? err.message : String(err));
+        console.error(`${red("Error:")} ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });
@@ -64,7 +83,7 @@ export function buildSecretCommand(): Command {
       await mgr.loadIdentity();
       const value = await mgr.getSecret(key);
       if (value === undefined) {
-        console.error(`Secret '${key}' not found or cannot be decrypted.`);
+        console.error(`${red("Error:")} Secret ${cyan(`'${key}'`)} not found or cannot be decrypted.`);
         process.exit(1);
       }
       // Double-check we're not printing something that looks like a private key
@@ -82,11 +101,11 @@ export function buildSecretCommand(): Command {
       await mgr.loadIdentity();
       try {
         const { newRecipient } = await mgr.rotate();
-        console.log("\n✓ Key rotation complete");
-        console.log(`  New public key: ${newRecipient}`);
-        console.log("  All secrets re-encrypted. Commit the changes to propagate to fleet members.");
+        console.log(`\n${green("✓")} Key rotation complete`);
+        console.log(`  ${cyan("New public key:")} ${newRecipient}`);
+        console.log(`  ${dim("All secrets re-encrypted. Commit the changes to propagate to fleet members.")}`);
       } catch (err) {
-        console.error("Error:", err instanceof Error ? err.message : String(err));
+        console.error(`${red("Error:")} ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });

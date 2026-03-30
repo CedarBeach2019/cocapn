@@ -1,0 +1,18 @@
+{
+  "colors": {
+    "primary": "#0052CC",
+    "secondary": "#0065FF",
+    "accent": "#2684FF",
+    "background": "#FAFBFC",
+    "surface": "#FFFFFF",
+    "text": "#172B4D",
+    "textSecondary": "#6B778C"
+  },
+  "typography": {
+    "fontFamily": "system-ui",
+    "headingFont": "system-ui",
+    "monoFont": "\"SF Mono\", \"Fira Code\", monospace"
+  },
+  "logo": "",
+  "darkMode": false
+}

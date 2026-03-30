@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "id": "search",
+      "patterns": ["search", "find", "look up", "what is"],
+      "action": "search",
+      "confidence": 0.8
+    },
+    {
+      "id": "settings",
+      "patterns": ["settings", "configure", "preferences", "options"],
+      "action": "open-settings",
+      "confidence": 0.9
+    },
+    {
+      "id": "dice-roll",
+      "patterns": ["roll .*d\\d+", "r(oll)? \\d+d\\d+"],
+      "action": "invoke-tool",
+      "tool": "dice-roller",
+      "confidence": 0.95
+    },
+    {
+      "id": "character-query",
+      "patterns": ["what are my.*stats", "show.*character", "hp.*level"],
+      "action": "read-state",
+      "stateKey": "character",
+      "context": "character-sheet"
+    },
+    {
+      "id": "combat-mode",
+      "patterns": ["initiative", "combat", "attack roll", "damage"],
+      "action": "switch-context",
+      "context": "combat-tracker",
+      "confidence": 0.9
+    }
+  ]
+}

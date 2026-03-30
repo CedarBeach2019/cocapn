@@ -1,0 +1,16 @@
+{
+  "name": "studylog",
+  "version": "1.0.0",
+  "description": "Interactive learning companion — patient tutor with quizzes and study tracking",
+  "author": "Superinstance <team@superinstance.com>",
+  "license": "MIT",
+  "keywords": ["education", "learning", "tutor", "quiz", "study"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/quiz-generator.skill", "skills/socratic-questioning.skill"],
+  "components": ["components/study-route.js", "components/quiz-panel.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
+  }
+}

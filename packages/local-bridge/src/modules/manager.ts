@@ -155,7 +155,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
 
   async remove(name: string, output?: OutputCb): Promise<void> {
     const mod = this.get(name);
-    if (!mod) throw new Error(`Module not found: ${name}`);
+    if (!mod) throw new Error(`COCAPN-020: Module not found: ${name} - Install the module with: cocapn-bridge module add <git-url>`);
 
     // Run disable hook first
     if (mod.status === "enabled") {
@@ -192,7 +192,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
 
   async update(name: string, output?: OutputCb): Promise<InstalledModule> {
     const mod = this.get(name);
-    if (!mod) throw new Error(`Module not found: ${name}`);
+    if (!mod) throw new Error(`COCAPN-020: Module not found: ${name} - Install the module with: cocapn-bridge module add <git-url>`);
 
     const moduleDir = join(this.modulesDir, name);
     const git = simpleGit(moduleDir);
@@ -239,7 +239,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
 
   async enable(name: string, output?: OutputCb): Promise<void> {
     const mod = this.get(name);
-    if (!mod) throw new Error(`Module not found: ${name}`);
+    if (!mod) throw new Error(`COCAPN-020: Module not found: ${name} - Install the module with: cocapn-bridge module add <git-url>`);
 
     await this.runLifecycleHook(name, mod.type, "enable", output);
 
@@ -249,7 +249,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
 
   async disable(name: string, output?: OutputCb): Promise<void> {
     const mod = this.get(name);
-    if (!mod) throw new Error(`Module not found: ${name}`);
+    if (!mod) throw new Error(`COCAPN-020: Module not found: ${name} - Install the module with: cocapn-bridge module add <git-url>`);
 
     await this.runLifecycleHook(name, mod.type, "disable", output);
 
@@ -262,7 +262,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
   loadManifest(moduleName: string): ModuleManifest {
     const manifestPath = join(this.modulesDir, moduleName, "module.yml");
     if (!existsSync(manifestPath)) {
-      throw new Error(`No module.yml found in modules/${moduleName}/`);
+      throw new Error(`COCAPN-021: No module.yml found in modules/${moduleName}/ - The module is missing its manifest. Reinstall the module from a valid source`);
     }
     const raw = parseYaml(readFileSync(manifestPath, "utf8")) as Partial<ModuleManifest>;
     return this.normalizeManifest(raw);
@@ -293,6 +293,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
       agent:       raw.agent,
       tool:        raw.tool,
       integration: raw.integration,
+      handoff:     raw.handoff,
     };
   }
 
@@ -345,7 +346,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
         // Validate path stays in sandbox
         const destPath = resolve(agentsDest, `${name}.agent.yml`);
         if (!isPathAllowed(destPath, this.repoRoot, name)) {
-          throw new Error(`Agent file destination outside sandbox: ${destPath}`);
+          throw new Error(`COCAPN-022: Agent file destination outside sandbox: ${destPath} - The module tried to write outside its allowed directory. Report this to the module author`);
         }
         cpSync(agentSrc, destPath);
         this.emit_progress(name, `Registered agent definition in cocapn/agents/${name}.agent.yml`, output);
@@ -361,7 +362,7 @@ export class ModuleManager extends EventEmitter<ModuleManagerEventMap> {
           mkdirSync(agentsDest, { recursive: true });
           const destPath = resolve(agentsDest, `${name}.mcp.json`);
           if (!isPathAllowed(destPath, this.repoRoot, name)) {
-            throw new Error(`MCP config destination outside sandbox`);
+            throw new Error(`COCAPN-023: MCP config destination outside sandbox - The module tried to modify MCP config outside its allowed area. Report to the module author`);
           }
           cpSync(mcpSrc, destPath);
           this.emit_progress(name, `Installed MCP config to cocapn/agents/${name}.mcp.json`, output);

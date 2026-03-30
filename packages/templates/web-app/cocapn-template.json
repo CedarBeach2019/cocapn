@@ -1,0 +1,16 @@
+{
+  "name": "playerlog",
+  "version": "1.0.0",
+  "description": "Gaming buddy — game stats, achievements, and gaming discussions",
+  "author": "Superinstance <team@superinstance.com>",
+  "license": "MIT",
+  "keywords": ["gaming", "games", "achievements", "stats", "player"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/game-lookup.skill", "skills/achievement-tracker.skill"],
+  "components": ["components/game-stats.js", "components/achievement-panel.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
+  }
+}

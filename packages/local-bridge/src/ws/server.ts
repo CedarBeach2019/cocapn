@@ -15,12 +15,9 @@
  *      → handled by dedicated streaming handlers that push multiple responses
  */
 
-import { WebSocketServer, WebSocket, type RawData } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "http";
 import { EventEmitter } from "events";
-import { exec } from "child_process";
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join, resolve } from "path";
 import type { AgentRouter } from "../agents/router.js";
 import type { AgentSpawner } from "../agents/spawner.js";
 import type { GitSync } from "../git/sync.js";
@@ -29,67 +26,57 @@ import type { CloudAdapterRegistry } from "../CloudAdapter.js";
 import type { Brain } from "../brain/index.js";
 import { ModuleManager } from "../modules/manager.js";
 import { AuditLogger } from "../security/audit.js";
-import { verifyJwt } from "../security/jwt.js";
+import { authenticateConnection } from "../security/auth-handler.js";
 import { ChatRouter } from "./chat-router.js";
-import { sanitizeRepoPath, SanitizationError } from "../utils/path-sanitizer.js";
 import { ChatHandler } from "../handlers/chat-handler.js";
+import { createSender, type Sender } from "./send.js";
+import { attachDispatcher, type HandlerRegistry } from "./dispatcher.js";
+import type {
+  BridgeServerOptions,
+  BridgeServerEventMap,
+  JsonRpcRequest,
+  TypedMessage,
+  SessionState,
+} from "./types.js";
+import type { HandlerContext } from "../handlers/types.js";
+import { handleBash } from "../handlers/bash.js";
+import { handleFileEdit } from "../handlers/file.js";
+import { handleA2aRequest } from "../handlers/a2a.js";
+import { handleModuleInstall } from "../handlers/module.js";
+import { handleChangeSkin } from "../handlers/skin.js";
+import { handleHttpPeerRequest } from "../handlers/peer.js";
+import { HealthChecker, checkGit, checkBrain, checkDisk, checkWebSocket, type SystemHealthStatus } from "../health/index.js";
+import { createOfflineQueue, OfflineQueue } from "../cloud-bridge/offline-queue.js";
+import { TokenTracker } from "../metrics/token-tracker.js";
+import { handleSkillList, handleSkillLoad, handleSkillUnload, handleSkillMatch, handleSkillContext, handleSkillStats } from "../handlers/skills.js";
+import { handleTokenStats, handleTokenEfficiency, handleTokenWaste } from "../handlers/metrics.js";
+import { handleBrowser } from "../handlers/browser.js";
+import {
+  handleStreamingDiffStart,
+  handleStreamingDiffChunk,
+  handleStreamingDiffStatus,
+  handleStreamingDiffFinalize,
+  handleStreamingDiffRollback,
+} from "../handlers/streaming-diff.js";
+import {
+  handleCloudStatus,
+  handleCloudSubmitTask,
+  handleCloudTaskResult,
+} from "../handlers/cloud.js";
+import type { CloudConnector } from "../cloud-bridge/connector.js";
+import { SettingsManager } from "../settings/index.js";
+import { handleChatStream } from "../handlers/llm.js";
+import { handleMemoryListTyped, handleMemoryAddTyped, handleMemoryDeleteTyped, handleWikiListTyped, handleWikiReadTyped, handleSoulGetTyped } from "../handlers/memory.js";
+import { handleFleetJoin, handleFleetSubmitTask, handleFleetTaskStatus, handleFleetListAgents, handleFleetHeartbeat } from "../handlers/fleet.js";
+import { handleQueueStatus, handleQueueCancel } from "../handlers/queue.js";
+
+// Re-export types for backward compatibility
+export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
 
 // ---------------------------------------------------------------------------
-// Types
+// Constants
 // ---------------------------------------------------------------------------
 
-export interface BridgeServerOptions {
-  config: BridgeConfig;
-  router: AgentRouter;
-  spawner: AgentSpawner;
-  sync: GitSync;
-  /** Root of the private repo — used for FILE_EDIT path resolution */
-  repoRoot: string;
-  /** Skip GitHub token validation (for local-only / testing) */
-  skipAuth: boolean | undefined;
-  /** Cloud adapter registry — set when mode !== "local" */
-  cloudAdapters: CloudAdapterRegistry | undefined;
-  /** Module manager — lazily created if not provided */
-  moduleManager: ModuleManager | undefined;
-  /** Fleet symmetric key for JWT auth (alternative to GitHub PAT) */
-  fleetKey: string | undefined;
-  /** Brain — provides soul + memory context for agent spawning */
-  brain: Brain | undefined;
-  /**
-   * Enable the A2A peer HTTP API on port+1.
-   * Disabled by default to avoid port conflicts in tests.
-   */
-  enablePeerApi?: boolean;
-}
-
-export type BridgeServerEventMap = {
-  listening: [port: number];
-  connection: [clientId: string];
-  disconnection: [clientId: string];
-  error: [err: Error];
-};
-
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  method: string;
-  params?: unknown;
-}
-
-interface TypedMessage {
-  type: "CHAT" | "BASH" | "FILE_EDIT" | "A2A_REQUEST" | "MODULE_INSTALL" | "INSTALL_MODULE" | "CHANGE_SKIN";
-  id: string;
-  [key: string]: unknown;
-}
-
-interface SessionState {
-  clientId: string;
-  githubLogin: string | undefined;
-  githubToken: string | undefined;
-  connectedAt: Date;
-}
-
-const GITHUB_API = "https://api.github.com";
 let clientCounter = 0;
 
 // ---------------------------------------------------------------------------
@@ -97,30 +84,194 @@ let clientCounter = 0;
 // ---------------------------------------------------------------------------
 
 export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
-  private wss:         WebSocketServer | null = null;
-  private httpSrv:     ReturnType<typeof createHttpServer> | null = null;
-  private options:     BridgeServerOptions;
-  private sessions =   new Map<string, SessionState>();
-  private audit:       AuditLogger;
-  private chatRouter:  ChatRouter;
-  private chatHandler: ChatHandler;
+  private wss:           WebSocketServer | null = null;
+  private httpSrv:       ReturnType<typeof createHttpServer> | null = null;
+  private options:       BridgeServerOptions;
+  private sessions =     new Map<string, SessionState>();
+  private audit:         AuditLogger;
+  private chatRouter:    ChatRouter;
+  private chatHandler:   ChatHandler;
+  private sender:        Sender;
+  private handlerCtx:    HandlerContext;
+  private handlerRegistry: HandlerRegistry;
+  private healthChecker: HealthChecker;
+  private offlineQueue:  OfflineQueue;
+  private tokenTracker:  TokenTracker;
+  private settingsManager: SettingsManager;
+  private healthInterval?: ReturnType<typeof setInterval>;
 
   constructor(options: BridgeServerOptions) {
     super();
     this.options    = options;
     this.audit      = new AuditLogger(options.repoRoot);
     this.chatRouter = new ChatRouter();
+    this.sender     = createSender();
+
+    // Initialize HealthChecker with standard checks
+    this.healthChecker = new HealthChecker();
+    this.setupHealthChecks();
+
+    // Initialize OfflineQueue
+    this.offlineQueue = new OfflineQueue(options.repoRoot);
+    this.offlineQueue.load().catch((err) => {
+      console.error('[bridge] Failed to load offline queue:', err);
+    });
+
+    // Initialize TokenTracker
+    this.tokenTracker = new TokenTracker({ maxRecords: 10000 });
+
+    // Initialize SettingsManager
+    this.settingsManager = new SettingsManager();
+    this.settingsManager.load().catch((err) => {
+      console.error('[bridge] Failed to load settings:', err);
+    });
+
+    // Build HandlerContext with all services
+    this.handlerCtx = this.buildHandlerContext();
+
+    // Build HandlerRegistry with all typed message handlers
+    this.handlerRegistry = new Map([
+      ["CHAT", async (ws, clientId, msg, ctx) => this.chatHandler.handle(ws, clientId, msg)],
+      ["CHAT_STREAM", handleChatStream],
+      ["BASH", handleBash],
+      ["FILE_EDIT", handleFileEdit],
+      ["A2A_REQUEST", handleA2aRequest],
+      ["MODULE_INSTALL", handleModuleInstall],
+      ["INSTALL_MODULE", handleModuleInstall],
+      ["CHANGE_SKIN", handleChangeSkin],
+      ["RUN_TESTS", async (_ws, _clientId, msg, ctx) => {
+        ctx.sender.typed(_ws, { type: "TEST_STATUS", id: msg.id, status: "error", message: "Test runner removed" });
+      }],
+      ["GENERATE_TESTS", async (_ws, _clientId, msg, ctx) => {
+        ctx.sender.typed(_ws, { type: "TEST_STATUS", id: msg.id, status: "error", message: "Test generator removed" });
+      }],
+      ["TEST_STATUS", async (_ws, _clientId, msg, ctx) => {
+        ctx.sender.typed(_ws, { type: "TEST_STATUS", id: msg.id, status: "not_found", message: "Test system removed" });
+      }],
+      ["BROWSER", handleBrowser],
+      ["STREAMING_DIFF_START", handleStreamingDiffStart],
+      ["STREAMING_DIFF_CHUNK", handleStreamingDiffChunk],
+      ["STREAMING_DIFF_STATUS", handleStreamingDiffStatus],
+      ["STREAMING_DIFF_FINALIZE", handleStreamingDiffFinalize],
+      ["STREAMING_DIFF_ROLLBACK", handleStreamingDiffRollback],
+      ["CLOUD_STATUS", handleCloudStatus],
+      ["CLOUD_SUBMIT_TASK", handleCloudSubmitTask],
+      ["CLOUD_TASK_RESULT", handleCloudTaskResult],
+      ["MEMORY_LIST", handleMemoryListTyped],
+      ["MEMORY_ADD", handleMemoryAddTyped],
+      ["MEMORY_DELETE", handleMemoryDeleteTyped],
+      ["WIKI_LIST", handleWikiListTyped],
+      ["WIKI_READ", handleWikiReadTyped],
+      ["SOUL_GET", handleSoulGetTyped],
+      ["FLEET_JOIN", handleFleetJoin],
+      ["FLEET_SUBMIT_TASK", handleFleetSubmitTask],
+      ["FLEET_TASK_STATUS", handleFleetTaskStatus],
+      ["FLEET_LIST_AGENTS", handleFleetListAgents],
+      ["FLEET_HEARTBEAT", handleFleetHeartbeat],
+      ["QUEUE_STATUS", handleQueueStatus],
+      ["QUEUE_CANCEL", handleQueueCancel],
+    ]);
+
+    // ChatHandler needs broadcast and moduleManager
     this.chatHandler = new ChatHandler({
       router:        options.router,
       spawner:       options.spawner,
       config:        options.config,
-      moduleManager: this.getModuleManager(),
+      moduleManager: this.handlerCtx.getModuleManager(),
       chatRouter:    this.chatRouter,
       broadcast:     (payload) => this.broadcastToAll(payload),
+      tokenTracker:  this.tokenTracker,
+      skillLoader:   options.skillLoader,
+      decisionTree:  options.decisionTree,
       ...(options.cloudAdapters !== undefined ? { cloudAdapters: options.cloudAdapters } : {}),
       ...(options.brain        !== undefined ? { brain:        options.brain        } : {}),
       ...(options.fleetKey     !== undefined ? { fleetKey:     options.fleetKey     } : {}),
+      ...(options.conversationMemory !== undefined ? { conversationMemory: options.conversationMemory } : {}),
     });
+  }
+
+  /**
+   * Setup standard health checks
+   */
+  private setupHealthChecks(): void {
+    const port = this.options.config.config.port;
+
+    // Git repository check
+    this.healthChecker.addCheck('git', checkGit(this.options.repoRoot));
+
+    // Brain/facts check
+    const factsPath = 'cocapn/memory/facts.json';
+    this.healthChecker.addCheck('brain', checkBrain(this.options.repoRoot, factsPath));
+
+    // Disk write check
+    this.healthChecker.addCheck('disk', checkDisk(this.options.repoRoot));
+
+    // WebSocket server check
+    this.healthChecker.addCheck('websocket', checkWebSocket(port));
+
+    // Skills check
+    this.healthChecker.addCheck('skills', () => {
+      const skillCount = this.options.skillLoader?.stats().total || 0;
+      if (skillCount === 0) {
+        return { status: 'degraded', message: 'No skills registered' };
+      }
+      return { status: 'healthy', message: `${skillCount} skills registered` };
+    });
+
+    // Cloud connectivity check (optional)
+    this.healthChecker.addCheck('cloud', async () => {
+      const cloudConnector = (this.options.bridge as any)?.cloudConnector as CloudConnector | undefined;
+      if (!cloudConnector) {
+        return { status: 'degraded', message: 'Cloud connector not configured' };
+      }
+
+      const status = await cloudConnector.getStatus();
+      if (!status.connected) {
+        return { status: 'unhealthy', message: status.error || 'Cloud worker unreachable' };
+      }
+
+      return { status: 'healthy', message: `Connected to ${status.workerUrl} (${status.latency}ms latency)` };
+    });
+  }
+
+  /**
+   * Build the HandlerContext that all handlers need.
+   * This provides access to all services without passing 8+ parameters.
+   */
+  private buildHandlerContext(): HandlerContext {
+    const moduleManagerRef = { current: this.options.moduleManager };
+
+    return {
+      config: this.options.config,
+      router: this.options.router,
+      spawner: this.options.spawner,
+      sync: this.options.sync,
+      repoRoot: this.options.repoRoot,
+      audit: this.audit,
+      chatRouter: this.chatRouter,
+      sender: this.sender,
+      brain: this.options.brain,
+      cloudAdapters: this.options.cloudAdapters,
+      fleetKey: this.options.fleetKey,
+      tokenTracker: this.tokenTracker,
+      skillLoader: this.options.skillLoader,
+      decisionTree: this.options.decisionTree,
+      bridge: this.options.bridge,
+      settingsManager: this.settingsManager,
+      analytics: this.options.analytics,
+      llmRouter: this.options.llmRouter,
+      personalityManager: this.options.personalityManager,
+      tenantRegistry: this.options.tenantRegistry,
+      tenantBridge: this.options.tenantBridge,
+      requestQueue: this.options.requestQueue,
+      getModuleManager: () => {
+        if (!moduleManagerRef.current) {
+          moduleManagerRef.current = new ModuleManager(this.options.repoRoot);
+        }
+        return moduleManagerRef.current;
+      },
+      broadcast: (payload) => this.broadcastToAll(payload),
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -168,6 +319,25 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     });
   }
 
+  /**
+   * Broadcast a shutdown event to all connected WebSocket clients,
+   * then close the server gracefully.
+   */
+  async shutdown(): Promise<void> {
+    if (!this.wss) return;
+    // Send shutdown event to all clients before terminating
+    for (const client of this.wss.clients) {
+      try {
+        client.send(JSON.stringify({ type: "SHUTDOWN", message: "Bridge is shutting down" }));
+      } catch {
+        // Client may already be disconnected
+      }
+    }
+    // Brief grace period for clients to receive the event
+    await new Promise((r) => setTimeout(r, 100));
+    await this.stop();
+  }
+
   async stop(): Promise<void> {
     if (!this.wss) return;
     for (const client of this.wss.clients) {
@@ -188,77 +358,201 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
   /**
    * HTTP request handler for A2A peer discovery and fact query endpoints.
+   * Delegates to the peer handler.
    *
    *   GET /.well-known/cocapn/peer   → peer card (domain, capabilities, publicKey)
    *   GET /api/peer/fact?key=<k>     → { key, value } from Brain facts
    *   GET /api/peer/facts            → all facts (requires fleet JWT)
+   *   GET /health                    → health status JSON
    */
   private async handleHttpRequest(
     req: IncomingMessage,
     res: ServerResponse
   ): Promise<void> {
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    const url = req.url || '';
 
-    const url = req.url ?? "/";
-    const { pathname, searchParams } = new URL(url, "http://localhost");
+    // Set brain mode based on request context
+    if (this.options.modeSwitcher && this.options.brain) {
+      const mode = this.options.modeSwitcher.detectMode({
+        path: url,
+        origin: req.headers.origin,
+        authorization: req.headers.authorization,
+        fleetJwt: req.headers['x-fleet-jwt'] as string | undefined,
+      });
+      this.options.brain.setMode(mode);
+    }
 
-    // ── Peer discovery card ───────────────────────────────────────────────────
-    if (pathname === "/.well-known/cocapn/peer") {
-      const card = {
-        domain:       this.options.config.config.tunnel ?? `localhost:${this.options.config.config.port}`,
-        capabilities: ["chat", "memory", "a2a"],
-        publicKey:    this.options.config.encryption.publicKey || null,
-        version:      "0.1.0",
-      };
-      res.writeHead(200).end(JSON.stringify(card));
+    // Handle health check endpoint
+    if (url === '/health') {
+      const health = await this.getHealthStatus();
+      const statusCode = health.status === 'unhealthy' ? 503 :
+                        health.status === 'degraded' ? 200 : 200;
+      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(health, null, 2));
       return;
     }
 
-    // Remaining endpoints require fleet JWT auth
-    if (!this.verifyPeerAuth(req)) {
-      res.writeHead(401).end(JSON.stringify({ error: "Unauthorized — fleet JWT required" }));
+    // Handle multi-tenant API endpoints
+    if (url.startsWith('/api/tenant/')) {
+      await this.handleTenantHttpRequest(req, res, url);
       return;
     }
 
-    // ── Single fact query ─────────────────────────────────────────────────────
-    if (pathname === "/api/peer/fact") {
-      const key = searchParams.get("key");
-      if (!key) {
-        res.writeHead(400).end(JSON.stringify({ error: "Missing key parameter" }));
-        return;
-      }
-      const value = this.options.brain?.getFact(key);
-      if (value === undefined) {
-        res.writeHead(404).end(JSON.stringify({ error: "Fact not found", key }));
-        return;
-      }
-      res.writeHead(200).end(JSON.stringify({ key, value }));
-      return;
-    }
-
-    // ── All facts ─────────────────────────────────────────────────────────────
-    if (pathname === "/api/peer/facts") {
-      const facts = this.options.brain?.getAllFacts() ?? {};
-      res.writeHead(200).end(JSON.stringify({ facts }));
-      return;
-    }
-
-    res.writeHead(404).end(JSON.stringify({ error: "Not found" }));
+    // Handle A2A peer endpoints
+    await handleHttpPeerRequest(req, res, this.handlerCtx);
   }
 
-  /** Verify fleet JWT in Authorization header. Returns true when auth is disabled (skipAuth). */
-  private verifyPeerAuth(req: IncomingMessage): boolean {
-    if (this.options.skipAuth) return true;
-    if (!this.options.fleetKey) return false;
+  // ---------------------------------------------------------------------------
+  // Multi-tenant HTTP API
+  // ---------------------------------------------------------------------------
 
-    const auth = req.headers["authorization"] ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  /**
+   * HTTP endpoints for multi-tenant management.
+   *
+   *   GET  /api/tenant/list           → list all tenants
+   *   GET  /api/tenant/:id            → get tenant by ID
+   *   POST /api/tenant/create         → create a new tenant
+   *   PUT  /api/tenant/:id            → update tenant
+   *   DEL  /api/tenant/:id            → delete tenant
+   *   GET  /api/tenant/:id/status     → tenant status
+   *   GET  /api/tenant/:id/usage      → tenant usage
+   *   POST /api/tenant/:id/chat       → chat with tenant brain
+   *
+   * All endpoints accept X-Tenant-ID header for tenant identification.
+   */
+  private async handleTenantHttpRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: string,
+  ): Promise<void> {
+    const setJson = (code: number, body: unknown) => {
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+
+    const registry = this.options.tenantRegistry;
+    const tBridge = this.options.tenantBridge;
+
+    if (!registry) {
+      setJson(503, { error: "Multi-tenancy not enabled" });
+      return;
+    }
+
+    // Parse URL path
+    const path = url.replace("/api/tenant/", "");
+    const segments = path.split("/").filter(Boolean);
+    const method = req.method || "GET";
+
     try {
-      verifyJwt(token, this.options.fleetKey);
-      return true;
-    } catch {
-      return false;
+      // GET /api/tenant/list
+      if (segments[0] === "list" && method === "GET") {
+        const tenants = await registry.listTenants();
+        setJson(200, { tenants, count: tenants.length });
+        return;
+      }
+
+      // Extract tenant ID from path or header
+      const tenantId = segments[0] || req.headers["x-tenant-id"] as string | undefined;
+
+      // POST /api/tenant/create
+      if (segments[0] === "create" && method === "POST") {
+        const body = await readBody(req);
+        const data = JSON.parse(body) as Record<string, unknown>;
+        if (!data.name || typeof data.name !== "string") {
+          setJson(400, { error: "Missing required field: name" });
+          return;
+        }
+        const tenant = await registry.createTenant({
+          name: data.name,
+          ...(data.plan !== undefined ? { plan: data.plan as "free" | "pro" | "enterprise" } : {}),
+          ...(data.config !== undefined ? { config: data.config as Partial<import("../multi-tenant/types.js").TenantConfig> } : {}),
+          ...(data.allowedOrigins !== undefined ? { allowedOrigins: data.allowedOrigins as string[] } : {}),
+        });
+        if (tBridge) {
+          await tBridge.initializeTenant(tenant.id);
+        }
+        setJson(201, { ok: true, tenant });
+        return;
+      }
+
+      if (!tenantId) {
+        setJson(400, { error: "Tenant ID required" });
+        return;
+      }
+
+      // GET /api/tenant/:id
+      if (segments.length === 1 && method === "GET") {
+        const tenant = await registry.getTenant(tenantId);
+        if (!tenant) {
+          setJson(404, { error: `Tenant not found: ${tenantId}` });
+          return;
+        }
+        setJson(200, tenant);
+        return;
+      }
+
+      // PUT /api/tenant/:id
+      if (segments.length === 1 && method === "PUT") {
+        const body = await readBody(req);
+        const data = JSON.parse(body) as Record<string, unknown>;
+        const updates: Record<string, unknown> = {};
+        if (data.name !== undefined) updates.name = data.name;
+        if (data.plan !== undefined) updates.plan = data.plan;
+        if (data.config !== undefined) updates.config = data.config;
+        if (data.allowedOrigins !== undefined) updates.allowedOrigins = data.allowedOrigins;
+        const updated = await registry.updateTenant(tenantId, updates as Parameters<typeof registry.updateTenant>[1]);
+        setJson(200, { ok: true, tenant: updated });
+        return;
+      }
+
+      // DELETE /api/tenant/:id
+      if (segments.length === 1 && method === "DELETE") {
+        await registry.deleteTenant(tenantId);
+        if (tBridge) tBridge.disposeContext(tenantId);
+        setJson(200, { ok: true });
+        return;
+      }
+
+      // GET /api/tenant/:id/status
+      if (segments[1] === "status" && method === "GET") {
+        if (!tBridge) {
+          setJson(503, { error: "Multi-tenancy not enabled" });
+          return;
+        }
+        const status = await tBridge.getStatus(tenantId);
+        setJson(200, { ok: true, ...status });
+        return;
+      }
+
+      // GET /api/tenant/:id/usage
+      if (segments[1] === "usage" && method === "GET") {
+        const usage = await registry.getUsage(tenantId);
+        setJson(200, { ok: true, usage });
+        return;
+      }
+
+      // POST /api/tenant/:id/chat
+      if (segments[1] === "chat" && method === "POST") {
+        if (!tBridge) {
+          setJson(503, { error: "Multi-tenancy not enabled" });
+          return;
+        }
+        const body = await readBody(req);
+        const data = JSON.parse(body) as Record<string, unknown>;
+        if (!data.message || typeof data.message !== "string") {
+          setJson(400, { error: "Missing required field: message" });
+          return;
+        }
+        const response = await tBridge.chat(tenantId, data.message);
+        setJson(200, { ok: true, response });
+        return;
+      }
+
+      setJson(404, { error: "Not found" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code = message.includes("not found") ? 404 : 500;
+      setJson(code, { error: message });
     }
   }
 
@@ -271,55 +565,19 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     req: IncomingMessage,
     clientId: string
   ): Promise<void> {
-    let githubLogin: string | undefined;
-    let githubToken: string | undefined;
+    const authResult = await authenticateConnection(ws, req, {
+      skipAuth: this.options.skipAuth,
+      fleetKey: this.options.fleetKey,
+      audit: this.audit,
+      onGithubToken: (token) => this.options.cloudAdapters?.setGitHubToken(token),
+    });
 
-    const rawToken = this.extractToken(req.url ?? "");
-
-    if (!this.options.skipAuth) {
-      if (!rawToken) {
-        this.audit.log({ action: "auth.reject", agent: undefined, user: undefined,
-          command: undefined, files: undefined, result: "denied",
-          detail: "Missing token", durationMs: undefined });
-        ws.close(4001, "Missing token — provide ?token=<github-pat> or ?token=<fleet-jwt>");
-        return;
-      }
-
-      // ── Fleet JWT auth (starts with "eyJ") ──────────────────────────────
-      if (rawToken.startsWith("eyJ") && this.options.fleetKey) {
-        try {
-          const payload = verifyJwt(rawToken, this.options.fleetKey);
-          githubLogin = payload.sub;
-          console.info(`[bridge] Fleet JWT authenticated: ${githubLogin} → ${clientId}`);
-          this.audit.log({ action: "auth.connect", agent: undefined, user: githubLogin,
-            command: undefined, files: undefined, result: "ok",
-            detail: "fleet-jwt", durationMs: undefined });
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          this.audit.log({ action: "auth.reject", agent: undefined, user: undefined,
-            command: undefined, files: undefined, result: "denied", detail, durationMs: undefined });
-          ws.close(4001, "Invalid fleet JWT");
-          return;
-        }
-      } else {
-        // ── GitHub PAT auth ────────────────────────────────────────────────
-        githubLogin = await this.validateGithubPat(rawToken);
-        if (!githubLogin) {
-          this.audit.log({ action: "auth.reject", agent: undefined, user: undefined,
-            command: undefined, files: undefined, result: "denied",
-            detail: "Invalid GitHub PAT", durationMs: undefined });
-          ws.close(4001, "Invalid or expired GitHub PAT");
-          return;
-        }
-        githubToken = rawToken;
-        console.info(`[bridge] Authenticated: ${githubLogin} → ${clientId}`);
-        this.audit.log({ action: "auth.connect", agent: undefined, user: githubLogin,
-          command: undefined, files: undefined, result: "ok",
-          detail: "github-pat", durationMs: undefined });
-        // Forward the token to cloud adapters so they can call GitHub API
-        this.options.cloudAdapters?.setGitHubToken(rawToken);
-      }
+    if (!authResult) {
+      // WebSocket already closed by authenticateConnection
+      return;
     }
+
+    const { githubLogin, githubToken } = authResult;
 
     this.sessions.set(clientId, {
       clientId,
@@ -332,447 +590,41 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     this.handleConnection(ws, clientId);
   }
 
-  private extractToken(url: string): string | undefined {
-    try {
-      // url may be a path like /?token=ghp_...
-      const params = new URLSearchParams(url.includes("?") ? url.slice(url.indexOf("?") + 1) : "");
-      return params.get("token") ?? undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private async validateGithubPat(token: string): Promise<string | undefined> {
-    try {
-      const res = await fetch(`${GITHUB_API}/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "User-Agent": "cocapn-bridge/0.1.0",
-        },
-      });
-      if (!res.ok) return undefined;
-      const body = (await res.json()) as { login?: string };
-      return body.login ?? undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Connection handler
   // ---------------------------------------------------------------------------
 
   private handleConnection(ws: WebSocket, clientId: string): void {
-    console.info(`[bridge] Client connected: ${clientId}`);
-
-    ws.on("message", (data: RawData) => {
-      const raw = data.toString();
-      let msg: Record<string, unknown>;
-      try {
-        msg = JSON.parse(raw) as Record<string, unknown>;
-      } catch {
-        this.sendError(ws, null, -32700, "Parse error");
-        return;
+    // Set brain mode to private for authenticated WebSocket connections
+    if (this.options.brain) {
+      const session = this.sessions.get(clientId);
+      if (session?.githubToken || session?.githubLogin) {
+        this.options.brain.setMode("private");
       }
-
-      // Route by protocol discriminant
-      if (typeof msg["type"] === "string") {
-        this.dispatchTyped(ws, clientId, msg as unknown as TypedMessage).catch(
-          (err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err);
-            this.sendTyped(ws, {
-              type: `${(msg as TypedMessage).type}_ERROR`,
-              id: (msg as TypedMessage).id,
-              error: message,
-            });
-          }
-        );
-      } else {
-        const rpc = msg as unknown as JsonRpcRequest;
-        this.dispatchRpc(ws, rpc).catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const code =
-            err !== null &&
-            typeof err === "object" &&
-            "code" in err &&
-            typeof (err as { code: unknown }).code === "number"
-              ? (err as { code: number }).code
-              : -32603;
-          this.sendError(ws, rpc.id, code, message);
-        });
-      }
-    });
-
-    ws.on("close", () => {
-      this.sessions.delete(clientId);
-      // Clean up any agent sessions owned by this client
-      this.options.spawner.detachSession(clientId).catch(() => undefined);
-      this.emit("disconnection", clientId);
-      console.info(`[bridge] Client disconnected: ${clientId}`);
-    });
-
-    ws.on("error", (err: Error) => {
-      console.error(`[bridge] Client ${clientId} error:`, err);
-    });
-
-    this.sendResult(ws, null, this.getBridgeStatus());
-  }
-
-  // ---------------------------------------------------------------------------
-  // Typed message dispatch
-  // ---------------------------------------------------------------------------
-
-  private async dispatchTyped(
-    ws: WebSocket,
-    clientId: string,
-    msg: TypedMessage
-  ): Promise<void> {
-    switch (msg.type) {
-      case "CHAT":
-        await this.chatHandler.handle(ws, clientId, msg);
-        break;
-      case "BASH":
-        await this.handleBash(ws, msg);
-        break;
-      case "FILE_EDIT":
-        await this.handleFileEdit(ws, msg);
-        break;
-      case "A2A_REQUEST":
-        await this.handleA2aRequest(ws, msg);
-        break;
-      case "MODULE_INSTALL":
-      case "INSTALL_MODULE":
-        await this.handleModuleInstall(ws, msg);
-        break;
-      case "CHANGE_SKIN":
-        await this.handleChangeSkin(ws, msg);
-        break;
-      default:
-        this.sendTyped(ws, {
-          type: "ERROR",
-          id: msg.id,
-          error: `Unknown message type: ${msg.type}`,
-        });
-    }
-  }
-
-  /**
-   * BASH — execute a shell command and stream stdout/stderr.
-   * Expects: { type: "BASH", id, command, cwd? }
-   * Emits:   { type: "BASH_OUTPUT", id, stdout?, stderr?, done, exitCode? }
-   *
-   * Security: cwd is resolved relative to the repo root and must not escape it.
-   */
-  private async handleBash(ws: WebSocket, msg: TypedMessage): Promise<void> {
-    const command = msg["command"] as string | undefined;
-    const rawCwd = (msg["cwd"] as string | undefined) ?? this.options.repoRoot;
-
-    if (!command) {
-      this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, error: "Missing command" });
-      return;
     }
 
-    // Ensure cwd stays within repo root
-    const cwd = resolve(this.options.repoRoot, rawCwd);
-    if (!cwd.startsWith(this.options.repoRoot)) {
-      this.audit.log({ action: "bash.exec", agent: undefined, user: undefined,
-        command, files: undefined, result: "denied",
-        detail: "cwd outside repo root", durationMs: undefined });
-      this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, error: "cwd outside repo root" });
-      return;
-    }
+    // Send initial bridge status
+    this.sender.result(ws, null, this.getBridgeStatus());
 
-    const finish = this.audit.start({ action: "bash.exec", agent: undefined, user: undefined,
-      command, files: undefined });
+    // Attach the dispatcher to handle all subsequent messages
+    attachDispatcher(ws, clientId, this.handlerRegistry, this.handlerCtx);
 
-    await new Promise<void>((resolveFn) => {
-      const child = exec(command, { cwd });
-
-      child.stdout?.on("data", (chunk: string) => {
-        this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, stdout: chunk, done: false });
-      });
-
-      child.stderr?.on("data", (chunk: string) => {
-        this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, stderr: chunk, done: false });
-      });
-
-      child.on("close", (exitCode) => {
-        finish(exitCode === 0 ? "ok" : "error", `exit ${exitCode ?? "null"}`);
-        this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, exitCode });
-        resolveFn();
-      });
-
-      child.on("error", (err) => {
-        finish("error", err.message);
-        this.sendTyped(ws, { type: "BASH_OUTPUT", id: msg.id, done: true, error: err.message });
-        resolveFn();
-      });
-    });
-  }
-
-  /**
-   * FILE_EDIT — write content to a file within the repo and auto-commit.
-   * Expects: { type: "FILE_EDIT", id, path, content }
-   * Emits:   { type: "FILE_EDIT_RESULT", id, ok, path?, error? }
-   */
-  private async handleFileEdit(ws: WebSocket, msg: TypedMessage): Promise<void> {
-    const relPath = msg["path"] as string | undefined;
-    const content = msg["content"] as string | undefined;
-
-    if (!relPath || content === undefined) {
-      this.sendTyped(ws, { type: "FILE_EDIT_RESULT", id: msg.id, ok: false, error: "Missing path or content" });
-      return;
-    }
-
-    let absPath: string;
-    try {
-      absPath = sanitizeRepoPath(relPath, this.options.repoRoot);
-    } catch (err) {
-      const detail = err instanceof SanitizationError ? err.message : "Invalid path";
-      this.audit.log({ action: "file.edit", agent: undefined, user: undefined,
-        command: undefined, files: [relPath], result: "denied", detail, durationMs: undefined });
-      this.sendTyped(ws, { type: "FILE_EDIT_RESULT", id: msg.id, ok: false, error: detail });
-      return;
-    }
-
-    const finish = this.audit.start({ action: "file.edit", agent: undefined, user: undefined,
-      command: undefined, files: [relPath] });
-    try {
-      writeFileSync(absPath, content, "utf8");
-      const filename = relPath.split("/").pop() ?? relPath;
-      await this.options.sync.commitFile(filename);
-      finish("ok");
-      this.sendTyped(ws, { type: "FILE_EDIT_RESULT", id: msg.id, ok: true, path: relPath });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      finish("error", message);
-      this.sendTyped(ws, {
-        type: "FILE_EDIT_RESULT",
-        id: msg.id,
-        ok: false,
-        error: message,
-      });
-    }
-  }
-
-  /**
-   * A2A_REQUEST — route an A2A task to the best available agent.
-   * Expects: { type: "A2A_REQUEST", id, task }
-   * Emits:   { type: "A2A_RESPONSE", id, routed, agent?, error? }
-   */
-  private async handleA2aRequest(ws: WebSocket, msg: TypedMessage): Promise<void> {
-    const taskDescription = JSON.stringify(msg["task"] ?? msg);
-    const routeResult = await this.options.router.resolveAndEnsureRunning(taskDescription);
-
-    if (!routeResult) {
-      this.sendTyped(ws, { type: "A2A_RESPONSE", id: msg.id, routed: false, error: "No agent available" });
-      return;
-    }
-
-    this.sendTyped(ws, {
-      type:   "A2A_RESPONSE",
-      id:     msg.id,
-      routed: true,
-      agent:  routeResult.definition.id,
-      source: routeResult.source,
-    });
-  }
-
-  /**
-   * MODULE_INSTALL — install a module by git URL, streaming progress.
-   * Expects: { type: "MODULE_INSTALL", id, gitUrl }
-   * Emits:   { type: "MODULE_PROGRESS", id, line, stream }
-   *          { type: "MODULE_RESULT", id, ok, module?, error? }
-   */
-  private async handleModuleInstall(ws: WebSocket, msg: TypedMessage): Promise<void> {
-    const gitUrl = msg["gitUrl"] as string | undefined;
-    if (!gitUrl) {
-      this.sendTyped(ws, { type: "MODULE_RESULT", id: msg.id, ok: false, error: "Missing gitUrl" });
-      return;
-    }
-
-    const manager = this.getModuleManager();
-
-    try {
-      const mod = await manager.add(gitUrl, (line, stream) => {
-        this.sendTyped(ws, { type: "MODULE_PROGRESS", id: msg.id, line, stream });
-      });
-      this.sendTyped(ws, { type: "MODULE_RESULT", id: msg.id, ok: true, module: mod });
-      // Broadcast updated module list to all connected clients
-      this.broadcastModuleList();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.sendTyped(ws, { type: "MODULE_RESULT", id: msg.id, ok: false, error: message });
-    }
-  }
-
-  private broadcastModuleList(): void {
-    this.broadcastToAll({ type: "MODULE_LIST_UPDATE", modules: this.getModuleManager().list() });
-  }
-
-  private getModuleManager(): ModuleManager {
-    if (!this.options.moduleManager) {
-      this.options.moduleManager = new ModuleManager(this.options.repoRoot);
-    }
-    return this.options.moduleManager;
-  }
-
-  // ---------------------------------------------------------------------------
-  // JSON-RPC dispatch
-  // ---------------------------------------------------------------------------
-
-  private async dispatchRpc(ws: WebSocket, req: JsonRpcRequest): Promise<void> {
-    const { method, params, id } = req;
-
-    if (method.startsWith("bridge/")) {
-      const result = await this.handleBridgeMethod(method, params);
-      this.sendResult(ws, id, result);
-      return;
-    }
-
-    if (method.startsWith("module/")) {
-      const result = await this.handleModuleMethod(ws, method, params);
-      this.sendResult(ws, id, result);
-      return;
-    }
-
-    if (method.startsWith("mcp/")) {
-      const result = await this.handleMcpMethod(method, params);
-      this.sendResult(ws, id, result);
-      return;
-    }
-
-    if (method.startsWith("a2a/")) {
-      const result = await this.handleA2aMethod(method, params);
-      this.sendResult(ws, id, result);
-      return;
-    }
-
-    this.sendError(ws, id, -32601, `Method not found: ${method}`);
-  }
-
-  private async handleBridgeMethod(method: string, _params: unknown): Promise<unknown> {
-    switch (method) {
-      case "bridge/status":
-        return this.getBridgeStatus();
-
-      case "bridge/agents":
-        return this.options.spawner.getAll().map((a) => ({
-          id: a.definition.id,
-          capabilities: a.definition.capabilities,
-          startedAt: a.startedAt.toISOString(),
-        }));
-
-      case "bridge/sessions":
-        return [...this.sessions.values()].map((s) => ({
-          clientId: s.clientId,
-          githubLogin: s.githubLogin,
-          connectedAt: s.connectedAt.toISOString(),
-        }));
-
-      case "bridge/sync":
-        await this.options.sync.commit("[cocapn] manual sync");
-        return { ok: true };
-
-      default:
-        throw Object.assign(new Error(`Unknown bridge method: ${method}`), { code: -32601 });
-    }
-  }
-
-  private async handleMcpMethod(method: string, params: unknown): Promise<unknown> {
-    const parts = method.split("/");
-    const agentId = parts[1];
-    const mcpMethod = parts.slice(2).join("/");
-
-    if (!agentId || !mcpMethod) {
-      throw new Error(`Invalid MCP method path: ${method}`);
-    }
-
-    const agent = this.options.spawner.get(agentId);
-    if (!agent) {
-      throw new Error(`Agent not running: ${agentId}`);
-    }
-
-    switch (mcpMethod) {
-      case "tools/list":
-        return agent.client.listTools();
-      case "tools/call":
-        return agent.client.callTool(params as Parameters<typeof agent.client.callTool>[0]);
-      case "resources/list":
-        return agent.client.listResources();
-      case "resources/read":
-        return agent.client.readResource((params as { uri: string }).uri);
-      default:
-        throw new Error(`Unsupported MCP method: ${mcpMethod}`);
-    }
-  }
-
-  private async handleModuleMethod(
-    ws: WebSocket,
-    method: string,
-    params: unknown
-  ): Promise<unknown> {
-    const manager = this.getModuleManager();
-    const p = (params ?? {}) as Record<string, unknown>;
-
-    switch (method) {
-      case "module/list":
-        return manager.list();
-
-      case "module/install": {
-        const gitUrl = p["gitUrl"] as string | undefined;
-        if (!gitUrl) throw new Error("Missing gitUrl");
-        const mod = await manager.add(gitUrl, (line, stream) => {
-          this.sendTyped(ws, { type: "MODULE_PROGRESS", id: "rpc", line, stream });
-        });
-        this.broadcastModuleList();
-        return mod;
-      }
-
-      case "module/remove": {
-        const name = p["name"] as string | undefined;
-        if (!name) throw new Error("Missing name");
-        await manager.remove(name);
-        this.broadcastModuleList();
-        return { ok: true };
-      }
-
-      case "module/update": {
-        const name = p["name"] as string | undefined;
-        if (!name) throw new Error("Missing name");
-        const updated = await manager.update(name);
-        this.broadcastModuleList();
-        return updated;
-      }
-
-      case "module/enable": {
-        const name = p["name"] as string | undefined;
-        if (!name) throw new Error("Missing name");
-        await manager.enable(name);
-        return { ok: true };
-      }
-
-      case "module/disable": {
-        const name = p["name"] as string | undefined;
-        if (!name) throw new Error("Missing name");
-        await manager.disable(name);
-        return { ok: true };
-      }
-
-      default:
-        throw Object.assign(new Error(`Unknown module method: ${method}`), { code: -32601 });
-    }
-  }
-
-  private async handleA2aMethod(method: string, params: unknown): Promise<unknown> {
-    const agentDef = await this.options.router.resolveAndEnsureRunning(JSON.stringify(params));
-    if (!agentDef) throw new Error("No agent available for this task");
-    return { routed: true, agent: agentDef.definition.id, source: agentDef.source, method };
+    // Emit connection event for listeners
+    this.emit("connection", clientId);
   }
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Broadcast a payload to all connected WebSocket clients.
+   * Used by handlers via ctx.broadcast().
+   */
+  private broadcastToAll(payload: Record<string, unknown>): void {
+    if (!this.wss) return;
+    this.sender.broadcast(this.wss, payload);
+  }
 
   private getBridgeStatus(): Record<string, unknown> {
     return {
@@ -785,94 +637,153 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     };
   }
 
-  private sendTyped(ws: WebSocket, payload: Record<string, unknown>): void {
-    ws.send(JSON.stringify(payload));
-  }
-
-  private sendResult(ws: WebSocket, id: JsonRpcRequest["id"], result: unknown): void {
-    ws.send(JSON.stringify({ jsonrpc: "2.0", id, result }));
-  }
-
-  private sendError(ws: WebSocket, id: JsonRpcRequest["id"], code: number, message: string): void {
-    ws.send(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }));
-  }
-
   // ---------------------------------------------------------------------------
-  // CHANGE_SKIN handler (2.4) — direct CHANGE_SKIN typed message path
+  // Health Check API
   // ---------------------------------------------------------------------------
 
   /**
-   * CHANGE_SKIN — switch the active UI skin/theme.
-   * Expects: { type: "CHANGE_SKIN", id, skin, preview? }
-   * Emits:   { type: "SKIN_UPDATE", id, skin, previewBranch?, cssVars?, done }
+   * Get the current health status of the bridge
    */
-  private async handleChangeSkin(ws: WebSocket, msg: TypedMessage): Promise<void> {
-    const skin    = msg["skin"] as string | undefined;
-    const preview = msg["preview"] as boolean | undefined;
+  async getHealthStatus(): Promise<SystemHealthStatus> {
+    return this.healthChecker.runAll();
+  }
 
-    if (!skin) {
-      this.sendTyped(ws, { type: "SKIN_UPDATE", id: msg.id, done: true, error: "Missing skin name" });
-      return;
+  /**
+   * Get the HealthChecker instance for custom checks
+   */
+  getHealthChecker(): HealthChecker {
+    return this.healthChecker;
+  }
+
+  /**
+   * Start periodic health checks (emits events on status change)
+   * @param intervalMs - Check interval in milliseconds (default: 30000)
+   */
+  startHealthMonitoring(intervalMs: number = 30000): void {
+    if (this.healthInterval) {
+      clearInterval(this.healthInterval);
     }
 
-    const manager = this.getModuleManager();
-    const modules  = manager.list();
-    const skinMod  = modules.find(
-      (m) => m.type === "skin" && (m.name === skin || m.name.includes(skin))
-    );
+    let lastStatus: 'healthy' | 'degraded' | 'unhealthy' | null = null;
 
-    if (skinMod) {
-      const otherSkins = modules.filter((m) => m.type === "skin" && m.name !== skinMod.name);
-      for (const s of otherSkins) {
-        try { await manager.disable(s.name); } catch { /* ignore */ }
+    this.healthInterval = setInterval(async () => {
+      const health = await this.getHealthStatus();
+
+      if (lastStatus !== health.status) {
+        this.emit('health-change', health);
+        lastStatus = health.status;
       }
-      try {
-        await manager.enable(skinMod.name);
-        this.sendTyped(ws, {
-          type: "SKIN_UPDATE", id: msg.id,
-          skin: skinMod.name, done: true,
-          message: `Skin **${skinMod.name}** activated.`,
-        });
-        this.broadcastToAll({ type: "SKIN_UPDATE_BROADCAST", skin: skinMod.name });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.sendTyped(ws, { type: "SKIN_UPDATE", id: msg.id, done: true, error: message });
-      }
-      return;
+    }, intervalMs);
+  }
+
+  /**
+   * Stop periodic health monitoring
+   */
+  stopHealthMonitoring(): void {
+    if (this.healthInterval) {
+      clearInterval(this.healthInterval);
+      this.healthInterval = undefined;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Offline Queue API
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the offline queue instance
+   */
+  getOfflineQueue(): OfflineQueue {
+    return this.offlineQueue;
+  }
+
+  /**
+   * Process pending offline queue operations
+   */
+  async flushOfflineQueue(): Promise<{ succeeded: number; failed: number; remaining: number }> {
+    const stats = this.offlineQueue.getStats();
+
+    if (stats.ready === 0) {
+      return { succeeded: 0, failed: 0, remaining: stats.total };
     }
 
-    const BUILTIN_VARS: Record<string, Record<string, string>> = {
-      dark:  { "--color-bg": "#0d0d0d", "--color-surface": "#1a1a1a", "--color-text": "#e8e8e8", "--color-primary": "#7c8aff" },
-      light: { "--color-bg": "#ffffff", "--color-surface": "#f4f4f5", "--color-text": "#18181b", "--color-primary": "#3b5bdb" },
+    // Define operation executor based on operation type
+    const executor = async (op: import('../cloud-bridge/offline-queue.js').QueuedOperation) => {
+      // Operations will be executed based on their type
+      // This is a placeholder - actual implementation depends on the operation type
+      switch (op.type) {
+        case 'chat':
+        case 'complete':
+          // These would be retried via the cloud bridge
+          throw new Error('Cloud operation not yet implemented');
+        case 'fact_set':
+          if (!this.options.brain) {
+            throw new Error('Brain not available');
+          }
+          const { key, value } = op.payload as { key: string; value: string };
+          await this.options.brain.setFact(key, value);
+          break;
+        case 'wiki_update':
+          // Wiki updates would be retried here
+          throw new Error('Wiki update not yet implemented');
+        case 'a2a_send':
+          // A2A messages would be retried here
+          throw new Error('A2A send not yet implemented');
+        default:
+          throw new Error(`Unknown operation type: ${(op as any).type}`);
+      }
     };
 
-    const cssVars = BUILTIN_VARS[skin.toLowerCase()];
-    if (cssVars) {
-      const branchName = preview ? `skin-preview-${skin}-${Date.now()}` : undefined;
-      this.sendTyped(ws, {
-        type: "SKIN_UPDATE", id: msg.id,
-        skin, cssVars, done: true,
-        previewBranch: branchName,
-        message: preview
-          ? `Skin preview created. Reply **"looks good, merge it"** to apply.`
-          : `Theme **${skin}** applied.`,
-      });
-      this.broadcastToAll({ type: "SKIN_UPDATE_BROADCAST", skin, cssVars });
-      return;
-    }
-
-    this.sendTyped(ws, {
-      type: "SKIN_UPDATE", id: msg.id, done: true,
-      error: `Unknown skin: ${skin}. Available: dark, light, or an installed skin module.`,
-    });
+    return this.offlineQueue.retryAll(executor);
   }
 
-  /** Send a JSON payload to every open WebSocket client. */
-  private broadcastToAll(payload: Record<string, unknown>): void {
-    if (!this.wss) return;
-    const raw = JSON.stringify(payload);
-    for (const client of this.wss.clients) {
-      if (client.readyState === WebSocket.OPEN) client.send(raw);
-    }
+  /**
+   * Get offline queue statistics
+   */
+  getOfflineQueueStats(): ReturnType<OfflineQueue['getStats']> {
+    return this.offlineQueue.getStats();
   }
+
+  // ---------------------------------------------------------------------------
+  // Token Tracker API
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the TokenTracker instance
+   */
+  getTokenTracker(): TokenTracker {
+    return this.tokenTracker;
+  }
+
+  /**
+   * Get token statistics for a time period
+   */
+  async getTokenStats(since?: Date, until?: Date): Promise<ReturnType<TokenTracker['getStats']>> {
+    return this.tokenTracker.getStats(since, until);
+  }
+
+  /**
+   * Get efficiency trend over time
+   */
+  async getTokenEfficiency(buckets: number = 24): Promise<ReturnType<TokenTracker['getEfficiencyTrend']>> {
+    return this.tokenTracker.getEfficiencyTrend(buckets);
+  }
+
+  /**
+   * Find and report token waste
+   */
+  async findTokenWaste(): Promise<ReturnType<TokenTracker['findWaste']>> {
+    return this.tokenTracker.findWaste();
+  }
+}
+
+// ─── HTTP helpers ────────────────────────────────────────────────────────────
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
 }

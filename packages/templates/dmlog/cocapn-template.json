@@ -1,0 +1,16 @@
+{
+  "name": "dmlog",
+  "version": "1.0.0",
+  "description": "TTRPG AI Dungeon Master — immersive adventures with dice, NPCs, and combat",
+  "author": "Superinstance <team@superinstance.com>",
+  "license": "MIT",
+  "keywords": ["ttrpg", "dnd", "dungeon-master", "rpg", "dice", "adventure"],
+  "personality": "personality.md",
+  "routes": "routes.json",
+  "theme": "theme.json",
+  "skills": ["skills/ttrpg-rules.skill", "skills/npc-generator.skill"],
+  "components": ["components/dice-roller.js", "components/character-sheet.js", "components/combat-tracker.js"],
+  "dependencies": {
+    "cocapn": ">=0.1.0"
+  }
+}

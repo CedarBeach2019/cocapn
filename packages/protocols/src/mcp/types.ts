@@ -58,7 +58,10 @@ export const JsonRpcErrorCode = {
 
 export interface McpCapabilities {
   tools?: Record<string, unknown>;
-  resources?: Record<string, unknown>;
+  resources?: {
+    subscribe?: boolean; // Server supports resource subscription
+    listChanged?: boolean; // Server supports listChanged notifications
+  };
   prompts?: Record<string, unknown>;
   sampling?: Record<string, unknown>;
   logging?: Record<string, unknown>;
@@ -103,14 +106,22 @@ export interface McpToolParameter {
   required?: string[];
 }
 
+export interface McpToolAnnotation {
+  audience: Array<"user" | "assistant">;
+  priority: number; // 0.0 to 1.0
+}
+
 export interface McpTool {
   name: string;
   description?: string;
+  title?: string; // Human-readable name for UI
   inputSchema: {
     type: "object";
     properties?: Record<string, McpToolParameter>;
     required?: string[];
   };
+  outputSchema?: Record<string, unknown>; // JSON Schema for output
+  annotations?: McpToolAnnotation;
 }
 
 export interface McpCallToolParams {
@@ -138,6 +149,15 @@ export interface McpCallToolResult {
 export interface McpResource {
   uri: string;
   name: string;
+  title?: string; // Human-readable name for UI
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpResourceTemplate {
+  uriTemplate: string; // RFC 6570 URI template
+  name: string;
+  title?: string;
   description?: string;
   mimeType?: string;
 }

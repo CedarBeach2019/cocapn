@@ -31,6 +31,16 @@ export interface IntegrationConfig {
   webhooks: string[];
 }
 
+/** Handoff configuration for inter-module delegation */
+export interface ModuleHandoffConfig {
+  /** List of module names this module can hand off to */
+  canHandoffTo: string[];
+  /** Whether this module can receive handoffs from other modules */
+  canReceiveHandoff: boolean;
+  /** Examples of handoff triggers for documentation */
+  handoffExamples: Array<{ trigger: string; target: string }>;
+}
+
 export interface ModuleManifest {
   name:        string;
   version:     string;
@@ -47,6 +57,8 @@ export interface ModuleManifest {
   agent:       AgentConfig | undefined;
   tool:        ToolConfig | undefined;
   integration: IntegrationConfig | undefined;
+  /** Handoff configuration for inter-module delegation */
+  handoff:     ModuleHandoffConfig | undefined;
 }
 
 // ─── Installed module record (persisted in cocapn/modules.json) ───────────────

@@ -1,0 +1,18 @@
+{
+  "colors": {
+    "primary": "#c9a23c",
+    "secondary": "#4A0080",
+    "accent": "#FF6B35",
+    "background": "#1A1A2E",
+    "surface": "#16213E",
+    "text": "#EAEAEA",
+    "textSecondary": "#A0A0A0"
+  },
+  "typography": {
+    "fontFamily": "\"Cinzel\", serif",
+    "headingFont": "\"MedievalSharp\", cursive",
+    "monoFont": "\"Fira Code\", monospace"
+  },
+  "logo": "",
+  "darkMode": true
+}

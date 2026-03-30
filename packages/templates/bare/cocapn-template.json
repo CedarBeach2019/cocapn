@@ -1,0 +1,12 @@
+{
+  "name": "bare",
+  "version": "1.0.0",
+  "description": "Minimal Cocapn instance with just the essentials",
+  "author": "Cocapn",
+  "license": "MIT",
+  "keywords": ["minimal", "starter", "basic"],
+  "domains": ["personallog.ai"],
+  "emoji": "🔧",
+  "features": [],
+  "modules": []
+}

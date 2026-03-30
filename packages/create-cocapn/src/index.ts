@@ -1,155 +1,172 @@
-#!/usr/bin/env node
 /**
- * create-cocapn — Zero-friction scaffolder for Cocapn agent instances.
+ * create-cocapn — Two-repo scaffolder for Cocapn agent instances.
  *
  * Usage:
- *   npx create-cocapn my-makerlog --domain makerlog
- *   npx create-cocapn my-studylog --domain studylog --token ghp_...
+ *   npx create-cocapn
+ *   npx create-cocapn my-app
+ *   npx create-cocapn my-app --template dmlog --domain dmlog
  */
 
-import { program } from "commander";
 import { resolve } from "path";
+import { existsSync, rmSync } from "fs";
+import { program } from "commander";
+import { prompt, promptHidden, choose, closePrompts } from "./prompts.js";
 import {
-  validateToken,
-  createGitHubRepos,
-  enableGitHubPages,
-  cloneRepos,
-  scaffoldPrivateRepo,
-  generateAgeKey,
-  commitAll,
-  pushRepo,
+  createPrivateRepo,
+  createPublicRepo,
+  initAndCommit,
+  writeSecrets,
+  testLLMConnection,
   printSuccess,
+  type ScaffoldConfig,
+  type LLMTestResult,
 } from "./scaffold.js";
-import { promptHidden, closePrompts } from "./prompts.js";
+
+// ─── Templates ────────────────────────────────────────────────────────────────
+
+const TEMPLATES = ["bare", "dmlog", "makerlog", "studylog"] as const;
+type Template = (typeof TEMPLATES)[number];
+
+// ─── Main flow ────────────────────────────────────────────────────────────────
+
+export async function createCocapn(
+  projectName: string | undefined,
+  opts?: {
+    template?: string;
+    domain?: string;
+    username?: string;
+    skipSecrets?: boolean;
+    skipLLMTest?: boolean;
+    dir?: string;
+  },
+): Promise<void> {
+  // ── Collect inputs ──────────────────────────────────────────────────────────
+
+  const username = opts?.username ?? await prompt("Username: ");
+
+  if (!username) {
+    console.error("Error: username is required.");
+    closePrompts();
+    process.exit(1);
+  }
+
+  const name = projectName ?? await prompt("Project name (e.g. my-app): ");
+
+  if (!name) {
+    console.error("Error: project name is required.");
+    closePrompts();
+    process.exit(1);
+  }
+
+  // Template
+  let template: string = opts?.template ?? "";
+  if (!template || !(TEMPLATES as readonly string[]).includes(template)) {
+    template = await choose("Choose a template (1): ", [...TEMPLATES]);
+  }
+
+  // Domain (optional)
+  let domain = opts?.domain ?? "";
+  if (!domain) {
+    const domainInput = await prompt("Custom domain (optional, e.g. makerlog): ");
+    domain = domainInput;
+  }
+
+  const baseDir = opts?.dir ?? resolve(process.cwd());
+
+  // ── Build config ────────────────────────────────────────────────────────────
+
+  const config: ScaffoldConfig = {
+    username,
+    projectName: name,
+    domain,
+    template,
+    baseDir,
+  };
+
+  const brainDir = resolve(baseDir, `${name}-brain`);
+  const publicDir = resolve(baseDir, name);
+
+  // ── Validate directories don't exist ────────────────────────────────────────
+
+  for (const dir of [brainDir, publicDir]) {
+    if (existsSync(dir)) {
+      console.error(`Error: Directory "${dir}" already exists. Remove it and try again.`);
+      closePrompts();
+      process.exit(1);
+    }
+  }
+
+  // ── Scaffold both repos ─────────────────────────────────────────────────────
+
+  console.log(`\nCreating Cocapn instance for ${username}...`);
+
+  console.log(`  Scaffolding brain repo...`);
+  createPrivateRepo(brainDir, config);
+
+  console.log(`  Scaffolding public repo...`);
+  createPublicRepo(publicDir, config);
+
+  // ── Initialize git ──────────────────────────────────────────────────────────
+
+  console.log(`  Initializing git repos...`);
+  initAndCommit(brainDir, username, "Initial Cocapn brain scaffold");
+  initAndCommit(publicDir, username, "Initial Cocapn public scaffold");
+
+  // ── Secrets ─────────────────────────────────────────────────────────────────
+
+  let llmResult: LLMTestResult | undefined;
+
+  if (!opts?.skipSecrets) {
+    console.log();
+    const apiKey = await promptHidden("DEEPSEEK_API_KEY (or Anthropic key, press Enter to skip): ");
+    if (apiKey) {
+      const keyName = apiKey.startsWith("sk-ant-") ? "ANTHROPIC_API_KEY" : "DEEPSEEK_API_KEY";
+      writeSecrets(brainDir, { [keyName]: apiKey });
+
+      // ── Test LLM connection ─────────────────────────────────────────────────
+      if (!opts?.skipLLMTest) {
+        console.log(`  Testing LLM connection...`);
+        llmResult = await testLLMConnection(apiKey);
+      }
+    }
+  }
+
+  // ── Done ────────────────────────────────────────────────────────────────────
+
+  closePrompts();
+  printSuccess({
+    username,
+    projectName: name,
+    domain,
+    brainDir,
+    publicDir,
+    ...(llmResult ? { llmResult } : {}),
+  });
+}
 
 // ─── CLI definition ───────────────────────────────────────────────────────────
 
-const DOMAINS = ["makerlog", "studylog", "activelog", "lifelog"] as const;
-type Domain = (typeof DOMAINS)[number];
-
 program
   .name("create-cocapn")
-  .description("Zero-friction scaffolder for Cocapn agent instances")
-  .argument("<name>", "Username / subdomain slug (e.g. my-makerlog)")
-  .option(
-    "--domain <domain>",
-    `Domain slug (choices: ${DOMAINS.join(", ")})`,
-    "makerlog"
-  )
-  .option("--token <pat>", "GitHub Personal Access Token (or set GITHUB_TOKEN env var)")
-  .option("--skip-pages", "Skip enabling GitHub Pages on the public repo")
-  .option("--dir <dir>", "Directory to clone into (default: cwd/<name>)")
-  .action(async (name: string, opts: {
-    domain: string;
-    token?: string;
-    skipPages?: boolean;
-    dir?: string;
+  .description("Two-repo scaffolder for Cocapn agent instances")
+  .argument("[name]", "Project name (e.g. my-app)")
+  .option("--template <template>", `Template type (${TEMPLATES.join(", ")})`)
+  .option("--domain <domain>", "Domain slug (e.g. makerlog)")
+  .option("--username <user>", "Username")
+  .option("--skip-secrets", "Skip secret prompts")
+  .option("--skip-llm-test", "Skip LLM connection test")
+  .action(async (name: string | undefined, opts: {
+    template?: string;
+    domain?: string;
+    username?: string;
+    skipSecrets?: boolean;
+    skipLLMTest?: boolean;
   }) => {
-    await run(name, opts);
+    await createCocapn(name, opts);
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error(`\nError: ${err instanceof Error ? err.message : String(err)}`);
+  closePrompts();
   process.exit(1);
 });
-
-// ─── Main action ──────────────────────────────────────────────────────────────
-
-async function run(
-  name: string,
-  opts: {
-    domain: string;
-    token?: string;
-    skipPages?: boolean;
-    dir?: string;
-  }
-): Promise<void> {
-  // Validate domain choice
-  const domain = opts.domain as Domain;
-  if (!(DOMAINS as readonly string[]).includes(domain)) {
-    console.error(
-      `Error: Unknown domain "${domain}". Valid choices: ${DOMAINS.join(", ")}`
-    );
-    process.exit(1);
-  }
-
-  // Resolve base dir
-  const baseDir = opts.dir ? resolve(opts.dir) : resolve(process.cwd(), name);
-
-  // ── GitHub token ─────────────────────────────────────────────────────────
-  let token = opts.token ?? process.env["GITHUB_TOKEN"] ?? "";
-
-  if (!token) {
-    console.log(
-      "\nYou need a GitHub Personal Access Token with repo + pages scopes."
-    );
-    console.log("  https://github.com/settings/tokens/new\n");
-    token = await promptHidden("GitHub PAT: ");
-  }
-
-  // ── Validate token ───────────────────────────────────────────────────────
-  process.stdout.write("  Validating token… ");
-  const username = await validateToken(token);
-  if (!username) {
-    console.error(
-      "\nInvalid or expired token. Check your PAT and try again."
-    );
-    closePrompts();
-    process.exit(1);
-  }
-  console.log(`ok (@${username})`);
-
-  // ── Create repos ─────────────────────────────────────────────────────────
-  console.log(`\n  Creating repos for "${name}" on domain ${domain}.ai…`);
-  const repos = await createGitHubRepos(token, username, name);
-  console.log(`  ✓ github.com/${username}/${repos.publicRepo} (public)`);
-  console.log(`  ✓ github.com/${username}/${repos.privateRepo} (private)`);
-
-  // ── Clone ─────────────────────────────────────────────────────────────────
-  console.log("\n  Cloning repos…");
-  const { publicDir, privateDir } = cloneRepos(token, username, repos, baseDir);
-  console.log(`  ✓ ${privateDir}`);
-  console.log(`  ✓ ${publicDir}`);
-
-  // ── Scaffold private repo ─────────────────────────────────────────────────
-  console.log("\n  Scaffolding private repo…");
-  scaffoldPrivateRepo(privateDir, username, domain);
-
-  // ── Age keygen ────────────────────────────────────────────────────────────
-  console.log("  Generating age keypair…");
-  const ageResult = generateAgeKey(privateDir);
-  if (ageResult) {
-    console.log(`  ✓ Age public key: ${ageResult.publicKey.slice(0, 24)}…`);
-  } else {
-    console.log(
-      "  (age-keygen not found — skipping. Install: https://age-encryption.org)"
-    );
-  }
-
-  // ── Commit and push ───────────────────────────────────────────────────────
-  console.log("\n  Committing scaffold…");
-  commitAll(privateDir, username, "Initial Cocapn scaffold");
-  commitAll(publicDir, username, "Initial Cocapn scaffold");
-
-  console.log("  Pushing to GitHub…");
-  pushRepo(privateDir, username);
-  pushRepo(publicDir, username);
-
-  // ── GitHub Pages ──────────────────────────────────────────────────────────
-  if (opts.skipPages !== true) {
-    console.log("  Enabling GitHub Pages…");
-    await enableGitHubPages(token, username, repos.publicRepo);
-    console.log("  ✓ Pages enabled (may take ~60s to go live)");
-  }
-
-  // ── Done ──────────────────────────────────────────────────────────────────
-  closePrompts();
-  printSuccess({
-    username,
-    domain,
-    name,
-    privateDir,
-    privateRepo: repos.privateRepo,
-    agePublicKey: ageResult?.publicKey,
-  });
-}

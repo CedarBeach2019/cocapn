@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cocapn.io/schemas/cocapn-template.schema.json",
+  "title": "Cocapn Template Manifest",
+  "description": "Validates cocapn-template.json files that declare a template's identity, features, and configuration.",
+  "type": "object",
+  "required": ["name", "version", "displayName", "description", "domains", "emoji", "author"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Template identifier (kebab-case)",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable name with domain"
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of what this template provides"
+    },
+    "domains": {
+      "type": "array",
+      "description": "Domains this template is designed for",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$"
+      },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "emoji": {
+      "type": "string",
+      "description": "Single emoji icon for the template"
+    },
+    "author": {
+      "type": "string",
+      "description": "Template author/organization"
+    },
+    "repository": {
+      "type": "string",
+      "description": "GitHub repository URL",
+      "pattern": "^https://github\\.com/"
+    },
+    "features": {
+      "type": "array",
+      "description": "Feature flags enabled by default",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "uniqueItems": true
+    },
+    "modules": {
+      "type": "array",
+      "description": "Pre-installed modules",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "uniqueItems": true
+    },
+    "personality": {
+      "type": "object",
+      "description": "Agent personality configuration",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to soul.md file"
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "Default system prompt override"
+        }
+      },
+      "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "description": "Default configuration values",
+      "properties": {
+        "cloud": {
+          "type": "object",
+          "description": "Cloud backend configuration",
+          "properties": {
+            "workerUrl": {
+              "type": "string",
+              "description": "Cloudflare Worker URL",
+              "pattern": "^https://"
+            }
+          },
+          "additionalProperties": true
+        },
+        "theme": {
+          "type": "object",
+          "description": "UI theme configuration",
+          "properties": {
+            "accent": {
+              "type": "string",
+              "description": "Accent color (hex)"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["light", "dark", "auto"]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "forks": {
+      "type": "array",
+      "description": "Optional fork paths for multi-path onboarding",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Fork identifier",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable fork name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Short description of this fork"
+          },
+          "features": {
+            "type": "array",
+            "description": "Features enabled for this fork",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "personality": {
+            "type": "object",
+            "description": "Override personality for this fork",
+            "properties": {
+              "systemPrompt": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

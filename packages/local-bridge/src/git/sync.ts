@@ -14,8 +14,10 @@ import { join } from "path";
 import { EventEmitter } from "events";
 import { simpleGit, type SimpleGit, type StatusResult } from "simple-git";
 import type { BridgeConfig } from "../config/types.js";
+import { DebounceTimer } from "../utils/debounce.js";
 
 const PULL_INTERVAL_MS = 30_000;
+const COMMIT_DEBOUNCE_MS = 500;
 
 export type SyncEventMap = {
   committed:    [message: string, files: string[]];
@@ -36,12 +38,17 @@ export class GitSync extends EventEmitter<SyncEventMap> {
   private syncTimer: ReturnType<typeof setInterval> | null = null;
   private memoryTimer: ReturnType<typeof setInterval> | null = null;
   private pullTimer: ReturnType<typeof setInterval> | null = null;
+  private commitDebounce: DebounceTimer;
 
   constructor(repoRoot: string, config: BridgeConfig) {
     super();
     this.repoRoot = repoRoot;
     this.git = simpleGit(repoRoot);
     this.config = config;
+    this.commitDebounce = new DebounceTimer({
+      delayMs: COMMIT_DEBOUNCE_MS,
+      fn: () => this.commit("[cocapn] batched auto-sync").catch(() => undefined),
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -127,6 +134,23 @@ export class GitSync extends EventEmitter<SyncEventMap> {
     return this.commit(`Cocapn: ${filename} modified`);
   }
 
+  /**
+   * Schedule a debounced commit for batch file edits.
+   * Multiple rapid calls within 500ms will result in a single commit.
+   * Use this when you expect multiple edits in quick succession.
+   */
+  scheduleCommit(): void {
+    this.commitDebounce.schedule();
+  }
+
+  /**
+   * Immediately flush any pending debounced commit.
+   * Use this when you need to ensure changes are committed before shutdown.
+   */
+  async flushScheduledCommit(): Promise<void> {
+    await this.commitDebounce.flush();
+  }
+
   // ---------------------------------------------------------------------------
   // Push
   // ---------------------------------------------------------------------------
@@ -191,6 +215,7 @@ export class GitSync extends EventEmitter<SyncEventMap> {
       clearInterval(this.memoryTimer);
       this.memoryTimer = null;
     }
+    this.commitDebounce.dispose();
   }
 
   // ---------------------------------------------------------------------------

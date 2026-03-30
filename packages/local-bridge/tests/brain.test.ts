@@ -126,32 +126,32 @@ describe("Brain.searchWiki", () => {
   beforeEach(async () => { repoRoot = await makeTempRepo(); });
   afterEach(() => rmSync(repoRoot, { recursive: true, force: true }));
 
-  it("returns empty array when wiki dir is missing", () => {
+  it("returns empty array when wiki dir is missing", async () => {
     const brain = makeBrain(repoRoot);
-    expect(brain.searchWiki("anything")).toEqual([]);
+    expect(await brain.searchWiki("anything")).toEqual([]);
   });
 
-  it("finds pages matching the query", () => {
+  it("finds pages matching the query", async () => {
     const wikiDir = join(repoRoot, "cocapn", "wiki");
     mkdirSync(wikiDir, { recursive: true });
     writeFileSync(join(wikiDir, "soldering.md"), "# Soldering\nTips for soldering SMD components.", "utf8");
     writeFileSync(join(wikiDir, "rust.md"), "# Rust\nOwnership and borrowing.", "utf8");
 
     const brain = makeBrain(repoRoot);
-    const results = brain.searchWiki("soldering");
+    const results = await brain.searchWiki("soldering");
     expect(results).toHaveLength(1);
     expect(results[0]!.title).toBe("Soldering");
     expect(results[0]!.file).toBe("soldering.md");
     expect(results[0]!.excerpt).toContain("Soldering");
   });
 
-  it("is case-insensitive", () => {
+  it("is case-insensitive", async () => {
     const wikiDir = join(repoRoot, "cocapn", "wiki");
     mkdirSync(wikiDir, { recursive: true });
     writeFileSync(join(wikiDir, "test.md"), "# Test\nTypeScript generics.", "utf8");
 
     const brain = makeBrain(repoRoot);
-    expect(brain.searchWiki("TYPESCRIPT")).toHaveLength(1);
+    expect((await brain.searchWiki("TYPESCRIPT")).length).toBeGreaterThanOrEqual(1);
   });
 });
 

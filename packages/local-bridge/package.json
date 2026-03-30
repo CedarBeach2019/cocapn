@@ -2,10 +2,11 @@
   "name": "@cocapn/local-bridge",
   "version": "0.1.0",
   "description": "Local Node.js bridge — WebSocket server, Git sync, and agent spawner for the Cocapn hybrid OS",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "cocapn-bridge": "./dist/esm/main.js",
-    "cocapn-brain":  "./dist/esm/brain-main.js"
+    "cocapn-brain": "./dist/esm/brain-main.js"
   },
   "exports": {
     ".": {
@@ -22,6 +23,9 @@
     "dev": "tsx src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run tests/e2e",
+    "test:e2e:smoke": "vitest run tests/e2e/smoke.test.ts",
+    "test:e2e:watch": "vitest tests/e2e",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -29,8 +33,10 @@
     "age-encryption": "^0.1.5",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.8.0",
     "chokidar": "^3.6.0",
     "commander": "^12.1.0",
+    "gray-matter": "^4.0.3",
     "libsodium-wrappers-sumo": "^0.8.2",
     "simple-git": "^3.25.0",
     "ws": "^8.17.0",
@@ -40,8 +46,10 @@
     "@types/keytar": "^4.4.2",
     "@types/node": "^20.0.0",
     "@types/ws": "^8.5.10",
+    "playwright": "^1.48.0",
     "tsx": "^4.16.0",
     "typescript": "^5.4.0",
+    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^1.6.0"
   },
   "optionalDependencies": {

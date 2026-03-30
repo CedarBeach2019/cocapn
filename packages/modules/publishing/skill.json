@@ -1,0 +1,50 @@
+{
+  "name": "publishing",
+  "version": "1.0.0",
+  "description": "Publish content to various platforms",
+  "category": "operations",
+  "triggers": ["publish", "post", "share", "deploy", "release"],
+  "hot": false,
+  "steps": [
+    {
+      "action": "read",
+      "description": "Read the content to be published from brain or draft",
+      "tool": "brain",
+      "fallback": "Ask user to provide content"
+    },
+    {
+      "action": "think",
+      "description": "Validate content format and metadata",
+      "fallback": "Proceed with basic validation"
+    },
+    {
+      "action": "execute",
+      "description": "Publish to the specified platform",
+      "tool": "publisher",
+      "fallback": "Save as draft if publish fails"
+    },
+    {
+      "action": "write",
+      "description": "Record publication in brain memory",
+      "tool": "brain",
+      "fallback": "Log publication locally"
+    }
+  ],
+  "examples": [
+    {
+      "input": "Publish my latest blog post",
+      "output": "Retrieve draft, validate, publish to blog, record in brain"
+    },
+    {
+      "input": "Share this on social media",
+      "output": "Format content, post to platform, log engagement"
+    }
+  ],
+  "tokenBudget": 600,
+  "tolerance": {
+    "network_failure": "retry",
+    "invalid_input": "error",
+    "timeout": "fallback"
+  },
+  "module": "publishing"
+}

@@ -18,6 +18,8 @@ import { buildSecretCommand } from "./cli/secret.js";
 import { buildTokenCommand }  from "./cli/token.js";
 import { buildInitCommand }   from "./cli/init.js";
 import { buildBrainCommand }  from "./cli/brain.js";
+import { buildTemplateCommand } from "./cli/template.js";
+import { buildTelemetryCommand } from "./cli/telemetry.js";
 
 const program = new Command();
 
@@ -103,6 +105,8 @@ program.addCommand(buildModuleCommand());
 program.addCommand(buildSecretCommand());
 program.addCommand(buildTokenCommand());
 program.addCommand(buildBrainCommand());
+program.addCommand(buildTemplateCommand());
+program.addCommand(buildTelemetryCommand());
 
 program.parse();
 

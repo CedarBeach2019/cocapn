@@ -12,6 +12,25 @@ import { SecretManager } from "../secret-manager.js";
 import { classifyGithubToken, verifyGithubToken } from "../security/fleet.js";
 import { resolve } from "path";
 
+// ─── Colours (no deps) ───────────────────────────────────────────────────────
+
+const C = {
+  reset:  "\x1b[0m",
+  bold:   "\x1b[1m",
+  dim:    "\x1b[2m",
+  green:  "\x1b[32m",
+  cyan:   "\x1b[36m",
+  yellow: "\x1b[33m",
+  red:    "\x1b[31m",
+};
+
+const green  = (s: string) => `${C.green}${s}${C.reset}`;
+const cyan   = (s: string) => `${C.cyan}${s}${C.reset}`;
+const yellow = (s: string) => `${C.yellow}${s}${C.reset}`;
+const red    = (s: string) => `${C.red}${s}${C.reset}`;
+const bold   = (s: string) => `${C.bold}${s}${C.reset}`;
+const dim    = (s: string) => `${C.dim}${s}${C.reset}`;
+
 export function buildTokenCommand(): Command {
   const cmd = new Command("token").description("Manage GitHub Personal Access Token (stored in OS keychain)");
 
@@ -24,15 +43,15 @@ export function buildTokenCommand(): Command {
     .action(async (pat: string, opts: { repo: string }) => {
       const mgr = new SecretManager(resolve(opts.repo));
       const { kind } = classifyGithubToken(pat);
-      console.log(`Token type: ${kind}`);
+      console.log(`${dim("Token type:")} ${cyan(kind)}`);
 
       const stored = await mgr.storeGithubToken(pat);
       if (stored) {
-        console.log("✓ GitHub PAT stored in OS keychain");
+        console.log(`${green("✓")} GitHub PAT stored in OS keychain`);
       } else {
         console.error(
-          "Keychain unavailable. Set the GITHUB_TOKEN environment variable instead:\n" +
-          "  export GITHUB_TOKEN=<your-token>"
+          `${yellow("Keychain unavailable. Set the GITHUB_TOKEN environment variable instead:")}\n` +
+          `  ${dim("export GITHUB_TOKEN=<your-token>")}`
         );
         process.exit(1);
       }
@@ -48,10 +67,10 @@ export function buildTokenCommand(): Command {
       const mgr   = new SecretManager(resolve(opts.repo));
       const token = await mgr.getGithubToken();
       if (!token) {
-        console.error("No GitHub PAT stored. Run: cocapn-bridge token set <pat>");
+        console.error(`${red("Error:")} No GitHub PAT stored. Run: ${yellow("cocapn-bridge token set <pat>")}`);
         process.exit(1);
       }
-      console.log(`Token: ${token.slice(0, 8)}...*** (${classifyGithubToken(token).kind})`);
+      console.log(`${dim("Token:")} ${token.slice(0, 8)}...*** ${dim(`(${classifyGithubToken(token).kind})`)}`);
     });
 
   // ── verify ────────────────────────────────────────────────────────────────
@@ -64,25 +83,25 @@ export function buildTokenCommand(): Command {
       const mgr   = new SecretManager(resolve(opts.repo));
       const token = await mgr.getGithubToken();
       if (!token) {
-        console.error("No GitHub PAT stored. Run: cocapn-bridge token set <pat>");
+        console.error(`${red("Error:")} No GitHub PAT stored. Run: ${yellow("cocapn-bridge token set <pat>")}`);
         process.exit(1);
       }
 
-      console.log("Verifying token against GitHub API…");
+      console.log(`${dim("Verifying token against GitHub API…")}`);
       const result = await verifyGithubToken(token);
 
       if (!result.valid) {
-        console.error("✗ Token is invalid or expired.");
+        console.error(`${red("✗ Token is invalid or expired.")}`);
         process.exit(1);
       }
 
-      console.log(`✓ Valid token for @${result.login ?? "unknown"}`);
-      console.log(`  Kind:   ${classifyGithubToken(token).kind}`);
-      console.log(`  Scopes: ${result.scopes.join(", ") || "(fine-grained — scopes not reported)"}`);
+      console.log(`${green("✓ Valid token for @")}${cyan(result.login ?? "unknown")}`);
+      console.log(`  ${dim("Kind:")}   ${classifyGithubToken(token).kind}`);
+      console.log(`  ${dim("Scopes:")} ${result.scopes.join(", ") || yellow("(fine-grained — scopes not reported)")}`);
 
       if (result.missingScopes.length > 0) {
-        console.warn(`  ⚠ Missing recommended scopes: ${result.missingScopes.join(", ")}`);
-        console.warn("  Required: repo, workflow");
+        console.warn(`  ${yellow("⚠ Missing recommended scopes:")} ${result.missingScopes.join(", ")}`);
+        console.warn(`  ${dim("Required: repo, workflow")}`);
       }
     });
 
@@ -96,9 +115,9 @@ export function buildTokenCommand(): Command {
       const mgr = new SecretManager(resolve(opts.repo));
       const ok  = await mgr.deleteGithubToken();
       if (ok) {
-        console.log("✓ GitHub PAT removed from keychain");
+        console.log(`${green("✓")} GitHub PAT removed from keychain`);
       } else {
-        console.error("Could not remove from keychain (may not have been stored there).");
+        console.error(`${yellow("Could not remove from keychain (may not have been stored there).")}`);
       }
     });
 

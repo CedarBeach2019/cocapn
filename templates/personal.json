@@ -1,0 +1,22 @@
+{
+  "name": "personallog",
+  "version": "1.0.0",
+  "displayName": "PersonalLog.ai — AI Personal Assistant",
+  "description": "Simplest personal AI assistant for daily tasks, notes, and organization",
+  "domains": ["personallog.ai"],
+  "emoji": "🤖",
+  "author": "Cocapn",
+  "repository": "https://github.com/cocapn/personallog-ai",
+  "features": ["task-list", "quick-notes", "daily-summary"],
+  "modules": [],
+  "personality": {
+    "file": "personality/soul.md",
+    "systemPrompt": "You are a helpful personal AI assistant. Help users organize their thoughts, manage tasks, and remember important details."
+  },
+  "config": {
+    "theme": {
+      "accent": "#6366f1",
+      "mode": "auto"
+    }
+  }
+}

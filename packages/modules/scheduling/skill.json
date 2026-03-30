@@ -1,0 +1,49 @@
+{
+  "name": "scheduling",
+  "version": "1.0.0",
+  "description": "Schedule and manage tasks and appointments",
+  "category": "operations",
+  "triggers": ["schedule", "task", "reminder", "appointment", "calendar", "todo"],
+  "hot": false,
+  "steps": [
+    {
+      "action": "think",
+      "description": "Parse the scheduling request to extract date, time, and task",
+      "fallback": "Ask for missing details"
+    },
+    {
+      "action": "read",
+      "description": "Check existing schedule for conflicts",
+      "tool": "scheduler",
+      "fallback": "Warn about potential conflicts"
+    },
+    {
+      "action": "write",
+      "description": "Add the task to the schedule",
+      "tool": "scheduler",
+      "fallback": "Save to temporary todo list"
+    },
+    {
+      "action": "respond",
+      "description": "Confirm scheduling and set up reminders",
+      "fallback": "Provide manual confirmation"
+    }
+  ],
+  "examples": [
+    {
+      "input": "Schedule a meeting for tomorrow at 2pm",
+      "output": "Parse datetime, check conflicts, add to calendar, confirm"
+    },
+    {
+      "input": "Remind me to call John on Friday",
+      "output": "Create reminder task, schedule notification, confirm"
+    }
+  ],
+  "tokenBudget": 500,
+  "tolerance": {
+    "network_failure": "fallback",
+    "invalid_input": "retry",
+    "timeout": "skip"
+  },
+  "module": "scheduling"
+}

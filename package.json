@@ -1,0 +1,24 @@
+{
+  "name": "cocapn-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cocapn — The self-hosted AI agent runtime by Superinstance",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint packages/*/src/ --ext .ts"
+  },
+  "author": "Superinstance <team@superinstance.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CedarBeach2019/cocapn"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

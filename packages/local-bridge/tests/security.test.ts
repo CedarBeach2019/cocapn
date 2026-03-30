@@ -162,7 +162,7 @@ describe("AuditLogger", () => {
   });
 
   it("disabled logger writes nothing", () => {
-    const logger = new AuditLogger(repoDir, false);
+    const logger = new AuditLogger(repoDir, { enabled: false });
     logger.log({ action: "bash.exec", agent: undefined, user: undefined,
       command: "x", files: undefined, result: "ok", durationMs: 0 });
     expect(existsSync(join(repoDir, "cocapn", "audit.log"))).toBe(false);

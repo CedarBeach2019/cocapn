@@ -1,0 +1,42 @@
+{
+  "name": "fishinglog",
+  "version": "1.0.0",
+  "displayName": "FishingLog.ai — Smart Fishing Companion",
+  "description": "AI companion for commercial and recreational fishing with catch tracking, spot management, and species guide",
+  "domains": ["fishinglog.ai"],
+  "emoji": "🎣",
+  "author": "Cocapn",
+  "repository": "https://github.com/cocapn/fishinglog-ai",
+  "features": ["catch-log", "species-guide", "weather-forecast"],
+  "modules": ["cloud-module-pii", "cloud-module-analytics"],
+  "personality": {
+    "file": "personality/soul.md",
+    "systemPrompt": "You are a knowledgeable fishing companion with expertise in species identification, regulations, and fishing techniques."
+  },
+  "config": {
+    "theme": {
+      "accent": "#0ea5e9",
+      "mode": "auto"
+    }
+  },
+  "forks": [
+    {
+      "id": "commercial",
+      "label": "Commercial Fishing",
+      "description": "Fleet management, catch tracking, and compliance for commercial fishing operations",
+      "features": ["fleet-tracker", "catch-log", "regulations", "compliance-reports"],
+      "personality": {
+        "systemPrompt": "You are a commercial fishing operations assistant with expertise in fleet management, catch reporting, and regulatory compliance for the commercial fishing industry."
+      }
+    },
+    {
+      "id": "recreational",
+      "label": "Recreational Fishing",
+      "description": "Personal fishing logs, spot tracking, and species guide for recreational anglers",
+      "features": ["spot-tracker", "catch-log", "species-guide", "tide-charts"],
+      "personality": {
+        "systemPrompt": "You are a recreational fishing buddy with knowledge of local fishing spots, species behavior, bait recommendations, and best fishing times."
+      }
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import { MCPClient, StdioTransport } from "@cocapn/protocols/mcp";
 import type { McpInitializeResult } from "@cocapn/protocols/mcp";
+import type { SecretManager } from "../secret-manager.js";
 
 // ─── Environment variable filter ─────────────────────────────────────────────
 //
@@ -66,6 +67,8 @@ export interface AgentDefinition {
   env: Record<string, string>;
   capabilities: string[];
   cost: "low" | "medium" | "high";
+  /** If true, agent is spawned on first message, not on bridge start */
+  lazy?: boolean;
 }
 
 export interface SpawnOptions {
@@ -96,6 +99,12 @@ export type SpawnerEventMap = {
 
 export class AgentSpawner extends EventEmitter<SpawnerEventMap> {
   private agents = new Map<string, SpawnedAgent>();
+  private secretManager: SecretManager | undefined;
+
+  constructor(secretManager?: SecretManager) {
+    super();
+    this.secretManager = secretManager;
+  }
 
   // ---------------------------------------------------------------------------
   // Spawn
@@ -111,10 +120,23 @@ export class AgentSpawner extends EventEmitter<SpawnerEventMap> {
     options: SpawnOptions = {}
   ): Promise<SpawnedAgent> {
     if (this.agents.has(definition.id)) {
-      throw new Error(`Agent already running: ${definition.id}`);
+      throw new Error(`COCAPN-010: Agent already running: ${definition.id} - Stop the agent first with: cocapn-bridge agent stop ${definition.id} or check if another process is using it`);
     }
 
-    const agentEnv: Record<string, string> = { ...definition.env };
+    // Resolve secret references in env vars (e.g., "secret:OPENAI_API_KEY")
+    const agentEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(definition.env)) {
+      if (value.startsWith("secret:")) {
+        const secretKey = value.slice(7); // Remove "secret:" prefix
+        const secretValue = this.secretManager ? await this.secretManager.getSecret(secretKey) : undefined;
+        if (secretValue === undefined) {
+          throw new Error(`COCAPN-034: Secret '${secretKey}' not found - Add it with: cocapn-bridge secret add ${secretKey} <value>`);
+        }
+        agentEnv[key] = secretValue;
+      } else {
+        agentEnv[key] = value;
+      }
+    }
     if (options.soul)    agentEnv["COCAPN_SOUL"]    = options.soul;
     if (options.context) agentEnv["COCAPN_CONTEXT"] = options.context;
 
@@ -129,7 +151,7 @@ export class AgentSpawner extends EventEmitter<SpawnerEventMap> {
 
     if (!stdinStream || !stdoutStream) {
       proc.kill();
-      throw new Error(`Agent ${definition.id}: failed to get stdio pipes`);
+      throw new Error(`COCAPN-011: Agent ${definition.id}: failed to get stdio pipes - The agent process failed to start. Check the agent command is valid and executable`);
     }
 
     // Stream stderr to callback and emit event
@@ -165,7 +187,7 @@ export class AgentSpawner extends EventEmitter<SpawnerEventMap> {
     } catch (err) {
       proc.kill();
       throw new Error(
-        `Agent ${definition.id}: MCP handshake failed — ${err instanceof Error ? err.message : String(err)}`
+        `COCAPN-012: Agent ${definition.id}: failed to spawn - ${err instanceof Error ? err.message : String(err)} - Check the agent command, args, and working directory. Ensure the agent binary exists and is executable`
       );
     }
 
@@ -229,5 +251,39 @@ export class AgentSpawner extends EventEmitter<SpawnerEventMap> {
 
   getAll(): SpawnedAgent[] {
     return [...this.agents.values()];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lazy spawning
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Check if an agent is currently spawned and ready.
+   */
+  isReady(id: string): boolean {
+    return this.agents.has(id);
+  }
+
+  /**
+   * Ensure an agent is spawned, spawning it lazily if needed.
+   * This is useful for agents with lazy=true that should only spawn on first use.
+   *
+   * Returns the spawned agent, or undefined if spawning failed.
+   */
+  async ensureSpawned(
+    definition: AgentDefinition,
+    options: SpawnOptions = {}
+  ): Promise<SpawnedAgent | undefined> {
+    // If already spawned, return it
+    const existing = this.agents.get(definition.id);
+    if (existing) return existing;
+
+    // Otherwise spawn it now
+    try {
+      return await this.spawn(definition, options);
+    } catch (err) {
+      this.emit("error", definition.id, err instanceof Error ? err : new Error(String(err)));
+      return undefined;
+    }
   }
 }

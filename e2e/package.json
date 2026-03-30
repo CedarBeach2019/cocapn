@@ -1,0 +1,20 @@
+{
+  "name": "@cocapn/e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Cocapn",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.17.6",
+    "typescript": "^5.6.3",
+    "ws": "^8.18.0"
+  }
+}

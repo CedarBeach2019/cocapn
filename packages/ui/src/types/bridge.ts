@@ -79,12 +79,112 @@ export interface BridgeStatusPush {
   uptime: number;
 }
 
+// Dashboard-related typed messages
+export interface SkillList {
+  type: "SKILL_LIST";
+  skills: Array<{
+    id: string;
+    name: string;
+    loaded: boolean;
+    tolerance: number;
+    memoryUsage: number;
+    matchCount: number;
+  }>;
+}
+
+export interface SkillStats {
+  type: "SKILL_STATS";
+  skillId: string;
+  loaded: boolean;
+  memoryUsage: number;
+  matchCount: number;
+}
+
+export interface TokenStats {
+  type: "TOKEN_STATS";
+  stats: Array<{
+    module: string;
+    tokens: number;
+    cost: number;
+  }>;
+  period: string; // e.g., "24h"
+}
+
+export interface TokenEfficiency {
+  type: "TOKEN_EFFICIENCY";
+  trend: Array<{
+    timestamp: number;
+    efficiency: number; // tokens per result
+  }>;
+  currentCost: number;
+}
+
+export interface GraphQuery {
+  type: "GRAPH_QUERY";
+  result: {
+    nodes: Array<{
+      id: string;
+      label: string;
+      type: string;
+      connections: number;
+    }>;
+    edges: Array<{
+      from: string;
+      to: string;
+      type: string;
+    }>;
+  };
+}
+
+export interface TreeSearch {
+  type: "TREE_SEARCH";
+  searchId: string;
+  status: "running" | "completed" | "failed";
+  approaches: Array<{
+    name: string;
+    progress: number;
+    result?: {
+      passRate: number;
+      qualityScore: number;
+    };
+  }>;
+}
+
+export interface TreeSearchStatus {
+  type: "TREE_SEARCH_STATUS";
+  activeTrees: number;
+  recentResults: Array<{
+    searchId: string;
+    approachName: string;
+    passRate: number;
+    qualityScore: number;
+  }>;
+}
+
+export interface CloudStatus {
+  type: "CLOUD_STATUS";
+  connected: boolean;
+  latency: number;
+  tasksQueued: number;
+  tasksCompleted: number;
+  lastHeartbeat: number;
+  workerHealth: "healthy" | "degraded" | "down";
+}
+
 export type IncomingTyped =
   | ChatStream
   | BashOutput
   | FileEditResult
   | A2AResponse
-  | BridgeStatusPush;
+  | BridgeStatusPush
+  | SkillList
+  | SkillStats
+  | TokenStats
+  | TokenEfficiency
+  | GraphQuery
+  | TreeSearch
+  | TreeSearchStatus
+  | CloudStatus;
 
 // JSON-RPC 2.0
 export interface RpcRequest {

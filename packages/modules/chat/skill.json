@@ -1,0 +1,43 @@
+{
+  "name": "chat",
+  "version": "1.0.0",
+  "description": "Handle chat messages and conversations",
+  "category": "communication",
+  "triggers": ["chat", "message", "conversation", "talk", "ask", "tell"],
+  "hot": true,
+  "steps": [
+    {
+      "action": "think",
+      "description": "Analyze the user's message to understand intent and context",
+      "fallback": "Ask for clarification if intent is unclear"
+    },
+    {
+      "action": "search",
+      "description": "Search brain memory for relevant context and past conversations",
+      "tool": "brain",
+      "fallback": "Proceed without context if search fails"
+    },
+    {
+      "action": "respond",
+      "description": "Generate a response based on intent and context",
+      "fallback": "Provide a general helpful response"
+    }
+  ],
+  "examples": [
+    {
+      "input": "What did we discuss about the project?",
+      "output": "Search brain for project-related conversations and summarize"
+    },
+    {
+      "input": "Tell me about my day",
+      "output": "Retrieve and summarize daily activities from brain memory"
+    }
+  ],
+  "tokenBudget": 400,
+  "tolerance": {
+    "network_failure": "fallback",
+    "invalid_input": "retry",
+    "timeout": "fallback"
+  },
+  "module": "chat"
+}

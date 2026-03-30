@@ -77,6 +77,10 @@ export class SchemaValidator {
     return this.validate("a2a-agent-card.schema.json", data);
   }
 
+  validateTemplateManifest(data: unknown): ValidationErrors {
+    return this.validate("cocapn-template.schema.json", data);
+  }
+
   // ---------------------------------------------------------------------------
   // Internal
   // ---------------------------------------------------------------------------

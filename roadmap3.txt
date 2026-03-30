@@ -1,0 +1,92 @@
+# Roadmap 3 — Next Phase Priorities
+
+## Phase 5: Cloud Integration (Highest Impact)
+
+### 5.1 AdmiralDO SQLite Migration [3h]
+Migrate AdmiralDO from KV storage to SQLite-backed Durable Objects.
+- Schema: profiles, tasks, task_queue, execution_logs tables
+- Indexes on username, displayName, currentFocus
+- Migration script for existing KV data
+- Sub-ms query performance for registry search
+
+### 5.2 Brain MCP Server [4h]
+Expose Brain memory as MCP resources + tools.
+- Tools: set_fact, get_fact, search_facts, set_wiki, get_wiki, list_wiki
+- Resources: soul.md, facts, wiki pages (with URI templates)
+- Enables any MCP-compatible AI to read/write cocapn memory
+- Resource subscriptions for real-time change notifications
+
+### 5.3 Cloud Bridge Module [8h]
+Connect cocapn agents to Cloudflare Workers.
+- CloudBridge class in packages/local-bridge/src/cloud-bridge/
+- Fleet JWT auth between bridge and Workers
+- PII dehydrate/rehydrate at edge
+- Adaptive routing (regex rules from LOG.ai)
+- Response caching (KV, 1h TTL)
+- Streaming SSE proxy
+- Draft comparison as optional cloud feature
+
+## Phase 6: Template System
+
+### 6.1 Template Packaging Spec [2h]
+- cocapn-template.json manifest (name, version, domains, features, personality)
+- Feature flags: which modules are pre-installed
+- Domain-specific defaults
+
+### 6.2 CLI Template Commands [3h]
+- `cocapn template list` — show available templates
+- `cocapn template install dmlog` — fetch and apply
+- `cocapn template create` — scaffold new template from current config
+- Template registry (GitHub releases or npm)
+
+### 6.3 Fork-Onboarding Pattern [2h]
+- Generic fork mechanism in cocapn.yml
+- Two-path onboarding for fishinglog.ai (commercial vs recreational)
+- Configurable fork conditions and module sets
+
+## Phase 7: Performance & Reliability
+
+### 7.1 UI Bundle Optimization [2h]
+- Vite code-splitting by route
+- Lazy load heavy components (magazine, settings)
+- Service worker for offline caching
+- Target: <50KB initial load
+
+### 7.2 Git Sync Optimization [2h]
+- Batch multiple edits into one commit (500ms debounce)
+- Diff-based sync (only changed files)
+- Conflict resolution strategies
+
+### 7.3 Error Recovery [3h]
+- Graceful degradation when cloud is unavailable
+- Retry with exponential backoff
+- Offline queue for pending operations
+- Health check dashboard
+
+## Phase 8: Security Hardening
+
+### 8.1 CSP & SRI [1h]
+- Content Security Policy for UI
+- Subresource Integrity for CDN imports
+- Helmet middleware patterns
+
+### 8.2 Rate Limiting [1h]
+- WebSocket connection rate limit (60/min per IP)
+- API call rate limit
+- Adaptive limits based on auth status
+
+### 8.3 Audit Logging [2h]
+- Log all admin operations
+- Log all fact/wiki changes
+- Tamper-evident log format
+- Export for compliance
+
+## Execution Order
+1. Brain MCP Server (unblocks any MCP AI from using cocapn)
+2. AdmiralDO SQLite (performance foundation for cloud features)
+3. Cloud Bridge (connects local agents to cloud)
+4. Template System (enables domain-specific deployments)
+5. Performance (optimization pass)
+6. Security (hardening pass)
+
+## Estimated Total: ~35 hours

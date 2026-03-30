@@ -14,7 +14,7 @@
 
 import { Command } from "commander";
 import { createInterface } from "readline";
-import { execSync, spawn } from "child_process";
+import { execFileSync, spawn } from "child_process";
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import { homedir, platform } from "os";
@@ -271,17 +271,20 @@ ${bold(cyan("   ╚═════╝ ╚═════╝  ╚═════�
 
     // ── Push setup ────────────────────────────────────────────────────────────
     progress("Pushing initial commits…");
-    pushRepo(publicDir, token, githubLogin);
-    pushRepo(privateDir, token, githubLogin);
-    ok("Pushed");
-
-    // ── Strip PAT from remote URLs ────────────────────────────────────────────
-    // The PAT was embedded in the remote URL for the initial push.
-    // Replace it with the clean HTTPS URL so credentials are no longer on disk.
-    progress("Cleaning remote URLs…");
-    stripPatFromRemote(publicDir,  githubLogin, publicRepo);
-    stripPatFromRemote(privateDir, githubLogin, privateRepo);
-    ok("Remote URLs cleaned (PAT removed from .git/config)");
+    try {
+      pushRepo(publicDir, token, githubLogin);
+      pushRepo(privateDir, token, githubLogin);
+      ok("Pushed");
+    } finally {
+      // ── Strip PAT from remote URLs ────────────────────────────────────────────
+      // The PAT was embedded in the remote URL for the initial push.
+      // Replace it with the clean HTTPS URL so credentials are no longer on disk.
+      // This runs even if push fails, ensuring PAT is never left on disk.
+      progress("Cleaning remote URLs…");
+      stripPatFromRemote(publicDir,  githubLogin, publicRepo);
+      stripPatFromRemote(privateDir, githubLogin, privateRepo);
+      ok("Remote URLs cleaned (PAT removed from .git/config)");
+    }
 
     // ── Install modules if full template ─────────────────────────────────────
     if (templateSlug === "full") {
@@ -458,23 +461,23 @@ function cloneTemplate(
   if (!existsSync(destDir)) mkdirSync(destDir, { recursive: true });
 
   // Init git repo
-  execSync("git init", { cwd: destDir, stdio: "ignore" });
-  execSync(`git remote add origin https://oauth2:${token}@github.com/${login}/${repoName}.git`, {
+  execFileSync("git", ["init"], { cwd: destDir, stdio: "ignore" });
+  execFileSync("git", ["remote", "add", "origin", `https://oauth2:${token}@github.com/${login}/${repoName}.git`], {
     cwd: destDir, stdio: "ignore",
   });
 
   if (existsSync(tmplDir)) {
     // Copy template files
-    execSync(`cp -r "${tmplDir}/." "${destDir}/"`, { stdio: "ignore" });
+    execFileSync("cp", ["-r", `${tmplDir}/.`, `${destDir}/`], { stdio: "ignore" });
   }
 
   // Replace placeholders
   replacePlaceholders(destDir, login, domain);
 
   // Initial commit
-  execSync("git add -A", { cwd: destDir, stdio: "ignore" });
+  execFileSync("git", ["add", "-A"], { cwd: destDir, stdio: "ignore" });
   try {
-    execSync(`git -c user.email="${login}@users.noreply.github.com" -c user.name="${login}" commit -m "Initial Cocapn setup"`, {
+    execFileSync("git", ["-c", `user.email=${login}@users.noreply.github.com`, "-c", `user.name=${login}`, "commit", "-m", "Initial Cocapn setup"], {
       cwd: destDir, stdio: "ignore",
     });
   } catch { /* already committed */ }
@@ -498,8 +501,8 @@ function replacePlaceholders(dir: string, login: string, domain: string): void {
 
 function pushRepo(dir: string, token: string, login: string): void {
   try {
-    execSync(
-      `git -c user.email="${login}@users.noreply.github.com" -c user.name="${login}" push -u origin HEAD`,
+    execFileSync(
+      "git", ["-c", `user.email=${login}@users.noreply.github.com`, "-c", `user.name=${login}`, "push", "-u", "origin", "HEAD"],
       { cwd: dir, stdio: "ignore" }
     );
   } catch { /* ignore first-push errors */ }
@@ -512,8 +515,8 @@ function pushRepo(dir: string, token: string, login: string): void {
  */
 function stripPatFromRemote(dir: string, login: string, repoName: string): void {
   try {
-    execSync(
-      `git remote set-url origin https://github.com/${login}/${repoName}.git`,
+    execFileSync(
+      "git", ["remote", "set-url", "origin", `https://github.com/${login}/${repoName}.git`],
       { cwd: dir, stdio: "ignore" }
     );
   } catch { /* non-fatal — user can run the fix manually */ }

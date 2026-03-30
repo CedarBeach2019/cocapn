@@ -2,18 +2,23 @@
   "name": "@cocapn/cloud-agents",
   "version": "0.1.0",
   "description": "Cloudflare Worker agents for Cocapn — always-on cloud compute tier",
+  "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev":    "wrangler dev",
+    "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cocapn/protocols": "file:../protocols"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241205.0",
+    "esbuild": "^0.27.4",
+    "miniflare": "^4.20260317.3",
     "typescript": "^5.4.0",
+    "vitest": "^2.1.9",
     "wrangler": "^3.95.0"
   }
 }

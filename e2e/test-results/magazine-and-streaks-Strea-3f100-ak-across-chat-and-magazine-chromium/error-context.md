@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Cocapn Magazine" [level=1] [ref=e4]
+    - generic [ref=e5]:
+      - text: 🔥
+      - generic [ref=e6]: "14"
+      - text: day streak
+  - generic [ref=e7]:
+    - generic [ref=e8]: 🔥 14
+    - generic [ref=e9]: days in a row!
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: 🔥 Day 5
+        - generic [ref=e14]: 3/28/2026
+      - generic [ref=e15]: This is my published update
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]: 🔥 Day 6
+        - generic [ref=e19]: 3/28/2026
+      - generic [ref=e20]: Session 1 update
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: 🔥 Day 7
+        - generic [ref=e24]: 3/28/2026
+      - generic [ref=e25]: Update 1
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]: 🔥 Day 8
+        - generic [ref=e29]: 3/28/2026
+      - generic [ref=e30]: Update 2
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]: 🔥 Day 9
+        - generic [ref=e34]: 3/28/2026
+      - generic [ref=e35]: Update 3
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]: 🔥 Day 10
+        - generic [ref=e39]: 3/28/2026
+      - generic [ref=e40]: Test update with streak
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - generic [ref=e43]: 🔥 Day 11
+        - generic [ref=e44]: 3/28/2026
+      - generic [ref=e45]: Timestamp test update
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]: 🔥 Day 12
+        - generic [ref=e49]: 3/28/2026
+      - generic [ref=e50]: This is a test update for content display
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]: 🔥 Day 13
+        - generic [ref=e54]: 3/28/2026
+      - generic [ref=e55]: This is a very long update that should wrap properly in the magazine layout. This is a very long update that should wrap properly in the magazine layout. This is a very long update that should wrap properly in the magazine layout. This is a very long update that should wrap properly in the magazine layout. This is a very long update that should wrap properly in the magazine layout.
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - generic [ref=e58]: 🔥 Day 14
+        - generic [ref=e59]: 3/28/2026
+      - generic [ref=e60]: Day 1 update
+```

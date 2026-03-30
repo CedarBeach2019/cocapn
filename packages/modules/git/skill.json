@@ -1,0 +1,44 @@
+{
+  "name": "git",
+  "version": "1.0.0",
+  "description": "Perform Git operations for version control",
+  "category": "code",
+  "triggers": ["git", "commit", "push", "pull", "branch", "merge", "clone", "checkout"],
+  "hot": false,
+  "steps": [
+    {
+      "action": "think",
+      "description": "Identify the Git operation and parameters",
+      "fallback": "Ask for missing Git parameters"
+    },
+    {
+      "action": "execute",
+      "description": "Execute the Git command",
+      "tool": "git",
+      "fallback": "Show manual Git command for user to run"
+    },
+    {
+      "action": "read",
+      "description": "Read and validate the result",
+      "tool": "git",
+      "fallback": "Warn user to verify result manually"
+    }
+  ],
+  "examples": [
+    {
+      "input": "Commit my changes",
+      "output": "Stage changes, create commit with message, push if needed"
+    },
+    {
+      "input": "Create a new branch",
+      "output": "Create branch from current HEAD, checkout new branch"
+    }
+  ],
+  "tokenBudget": 450,
+  "tolerance": {
+    "network_failure": "retry",
+    "invalid_input": "error",
+    "timeout": "fallback"
+  },
+  "module": "git"
+}
