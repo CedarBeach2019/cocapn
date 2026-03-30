@@ -5,6 +5,7 @@
  *   cocapn setup [dir]         — Interactive onboarding wizard
  *   cocapn init [dir]          — Alias for setup
  *   cocapn start               — Start the bridge
+ *   cocapn chat                — Interactive terminal chat
  *   cocapn status              — Show bridge status
  *   cocapn deploy              — Deploy to Cloudflare Workers
  *   cocapn rollback            — Rollback deployment
@@ -36,6 +37,7 @@ import { createPluginCommand } from "./commands/plugin.js";
 import { createPersonalityCommand } from "./commands/personality.js";
 import { createRunCommand } from "./commands/run.js";
 import { createTelemetryCommand } from "./commands/telemetry.js";
+import { createChatCommand } from "./commands/chat.js";
 
 const VERSION = "0.1.0";
 
@@ -52,6 +54,7 @@ export function createCLI(): Command {
   program.addCommand(createInitCommand()); // init delegates to setup
   program.addCommand(createStartCommand());
   program.addCommand(createStatusCommand());
+  program.addCommand(createChatCommand());
 
   // Deploy commands
   program.addCommand(createDeployCommand());
