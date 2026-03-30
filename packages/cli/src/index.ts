@@ -36,6 +36,8 @@
  *   cocapn config set <k> <v>  — Set a config value
  *   cocapn config reset        — Reset to defaults
  *   cocapn config validate     — Validate config
+ *   cocapn logs                — Show recent agent logs
+ *   cocapn logs search <query> — Search logs
  *   cocapn version             — Show version
  */
 
@@ -63,6 +65,7 @@ import { createSyncCommand } from "./commands/sync.js";
 import { createWikiCommand } from "./commands/wiki.js";
 import { createFleetCommand } from "./commands/fleet.js";
 import { createConfigCommand } from "./commands/config.js";
+import { createLogsCommand } from "./commands/logs.js";
 
 const VERSION = "0.1.0";
 
@@ -124,6 +127,9 @@ export function createCLI(): Command {
   // Utility commands
   program.addCommand(createTokensCommand());
   program.addCommand(createHealthCommand());
+
+  // Logs commands
+  program.addCommand(createLogsCommand());
 
   return program;
 }
