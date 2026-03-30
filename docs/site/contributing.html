@@ -82,20 +82,17 @@
       </ul>
 
       <h3>Fork and Clone</h3>
-      <pre><code># Fork the repository on GitHub
+      <pre><code># Fork the repository on GitHub, then:
 git clone https://github.com/YOUR_USERNAME/cocapn.git
-cd cocapn</code></pre>
+cd cocapn
+npm install
+npm run build</code></pre>
 
       <h3>Install Dependencies</h3>
-      <pre><code># Install all package dependencies
-npm install
-
-# Install dependencies for local-bridge
+      <pre><code># Dependencies are installed via workspaces from the root.
+# To install for a specific package:
 cd packages/local-bridge
-npm install
-
-# Link for local development
-npm link</code></pre>
+npm install</code></pre>
 
       <h3>Run Tests</h3>
       <pre><code># Run all tests
@@ -280,7 +277,7 @@ Co-Authored-By: Superinstance &lt;team@superinstance.com&gt;</code></pre>
       <h3>Creating a PR</h3>
       <ol>
         <li>Push your branch to your fork</li>
-        <li>Create a pull request to <code>superinstance/cocapn:main</code></li>
+        <li>Create a pull request to <code>CedarBeach2019/cocapn:main</code></li>
         <li>Fill out the PR template</li>
         <li>Link related issues</li>
         <li>Request review from maintainers</li>

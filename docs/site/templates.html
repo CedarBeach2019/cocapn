@@ -63,16 +63,28 @@
         </thead>
         <tbody>
           <tr>
-            <td><strong>personallog</strong></td>
-            <td>personallog.ai</td>
-            <td>Generic personal assistant</td>
-            <td>Simplest starting point, general-purpose</td>
+            <td><strong>bare</strong></td>
+            <td>—</td>
+            <td>Minimal</td>
+            <td>Just the essentials, start from scratch</td>
           </tr>
           <tr>
             <td><strong>businesslog</strong></td>
             <td>businesslog.ai</td>
             <td>Professional/enterprise</td>
             <td>Docker defaults, enterprise add-ons</td>
+          </tr>
+          <tr>
+            <td><strong>cloud-worker</strong></td>
+            <td>—</td>
+            <td>Cloudflare Workers</td>
+            <td>Serverless deployment template</td>
+          </tr>
+          <tr>
+            <td><strong>dmlog</strong></td>
+            <td>DMlog.ai</td>
+            <td>TTRPG campaigns</td>
+            <td>Game console UI, character sheets, campaign management</td>
           </tr>
           <tr>
             <td><strong>makerlog</strong></td>
@@ -87,40 +99,10 @@
             <td>Education templates, research tools, citation management</td>
           </tr>
           <tr>
-            <td><strong>dmlog</strong></td>
-            <td>DMlog.ai</td>
-            <td>TTRPG campaigns</td>
-            <td>Game console UI, character sheets, campaign management</td>
-          </tr>
-          <tr>
-            <td><strong>activelog</strong></td>
-            <td>activelog.ai</td>
-            <td>Health & fitness</td>
-            <td>Fitness tracking, workout plans, health metrics</td>
-          </tr>
-          <tr>
-            <td><strong>activeledger</strong></td>
-            <td>activeledger.ai</td>
-            <td>Finance & crypto</td>
-            <td>Finance tools, portfolio tracking, crypto analysis</td>
-          </tr>
-          <tr>
-            <td><strong>fishinglog</strong></td>
-            <td>fishinglog.ai</td>
-            <td>Commercial & recreational fishing</td>
-            <td>Commercial vs recreational fork, catch tracking</td>
-          </tr>
-          <tr>
-            <td><strong>playerlog</strong></td>
-            <td>playerlog.ai</td>
-            <td>Video gamers</td>
-            <td>Gaming focus, achievement tracking, game stats</td>
-          </tr>
-          <tr>
-            <td><strong>reallog</strong></td>
-            <td>reallog.ai</td>
-            <td>Journalists & documentarians</td>
-            <td>Media tools, interview notes, fact-checking</td>
+            <td><strong>web-app</strong></td>
+            <td>—</td>
+            <td>Full-stack web apps</td>
+            <td>Gaming buddy, game stats, achievements</td>
           </tr>
         </tbody>
       </table>
@@ -217,10 +199,13 @@ npx create-cocapn my-instance --template /path/to/template</code></pre>
 
       <h3>List Available Templates</h3>
       <pre><code>cocapn template list
-# → personallog    — Generic personal assistant
+# → bare           — Minimal, start from scratch
+# → businesslog    — Enterprise deployments
+# → cloud-worker   — Cloudflare Workers only
+# → dmlog          — TTRPG game console
 # → makerlog       — Developers & manufacturers
-# → dmlog          — TTRPG campaigns
-# → studylog       — Education & research</code></pre>
+# → studylog       — Education & research
+# → web-app        — Full-stack web apps</code></pre>
     </section>
 
     <section>
@@ -369,7 +354,7 @@ customDomain: true</code></pre>
       <h2>Template Best Practices</h2>
 
       <h3>1. Start Simple</h3>
-      <p>Begin with the <code>personallog</code> template and customize incrementally.</p>
+      <p>Begin with the <code>bare</code> template and customize incrementally.</p>
 
       <h3>2. Document Everything</h3>
       <p>Include a comprehensive <code>README.md</code> explaining your template's purpose and usage.</p>

@@ -42,12 +42,15 @@
 wss://your-instance.workers.dev  # Cloudflare Workers</code></pre>
 
       <h3>Authentication</h3>
-      <p>Authenticate by sending an <code>AUTH</code> message as the first message:</p>
-      <pre><code>{
-  "type": "AUTH",
-  "token": "github_pat_...",  // GitHub PAT or fleet JWT
-  "version": "1.0.0"
-}</code></pre>
+      <p>Authenticate by passing a token as a query parameter when connecting:</p>
+      <pre><code>ws://localhost:8787?token=github_pat_...
+wss://your-instance.workers.dev?token=eyJ...</code></pre>
+      <p>Two authentication methods are supported:</p>
+      <ul>
+        <li><strong>GitHub PAT</strong> — validated against GitHub's <code>/user</code> API</li>
+        <li><strong>Fleet JWT</strong> — HMAC-SHA256 signed token (starts with <code>eyJ</code>)</li>
+      </ul>
+      <p>If authentication fails, the WebSocket is closed with code <code>4001</code>.</p>
 
       <h3>Message Types</h3>
       <table>
@@ -59,21 +62,6 @@ wss://your-instance.workers.dev  # Cloudflare Workers</code></pre>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td><code>AUTH</code></td>
-            <td>Client → Server</td>
-            <td>Authenticate with GitHub PAT or fleet JWT</td>
-          </tr>
-          <tr>
-            <td><code>AUTH_SUCCESS</code></td>
-            <td>Server → Client</td>
-            <td>Authentication successful</td>
-          </tr>
-          <tr>
-            <td><code>AUTH_ERROR</code></td>
-            <td>Server → Client</td>
-            <td>Authentication failed</td>
-          </tr>
           <tr>
             <td><code>CHAT</code></td>
             <td>Client → Server</td>
@@ -540,7 +528,7 @@ Content-Type: application/json
         <tbody>
           <tr>
             <td><code>AUTH_FAILED</code></td>
-            <td>Authentication failed</td>
+            <td>Authentication failed (WebSocket close code 4001)</td>
           </tr>
           <tr>
             <td><code>AGENT_NOT_FOUND</code></td>

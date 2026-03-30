@@ -125,7 +125,7 @@ cocapn deploy                     # Deploy current project
 
 ## Test Status
 
-- **104 test files** across packages (unit + integration)
+- **129 test files** across packages (unit + integration)
 - **E2E tests** via Playwright: bridge-startup, chat-flow, cloud-connector, skill-lifecycle, tree-search
 - Most tests pass — some age-encryption tests fail on ARM64 (platform-specific WASM issue, not code bugs)
 - Run tests: `cd packages/local-bridge && npx vitest run`

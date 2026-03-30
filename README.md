@@ -6,7 +6,7 @@
 
 Run an AI agent locally. It remembers your context across sessions, ships to Cloudflare Workers, and coordinates with other agents. No cloud dependency, no vendor lock-in.
 
-[![CI](https://github.com/superinstance/cocapn/actions/workflows/ci.yml/badge.svg)](https://github.com/superinstance/cocapn/actions/workflows/ci.yml)
+[![CI](https://github.com/CedarBeach2019/cocapn/actions/workflows/ci.yml/badge.svg)](https://github.com/CedarBeach2019/cocapn/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/cocapn.svg)](https://www.npmjs.com/package/cocapn)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -33,22 +33,31 @@ cd my-agent
 cocapn start
 ```
 
-Open `localhost:3000`, chat, close it, restart — your agent remembers everything.
+**From source:**
+
+```bash
+git clone https://github.com/CedarBeach2019/cocapn.git
+cd cocapn && npm install && npm run build
+cd packages/cli && node bin/cocapn.js init ~/.cocapn
+node bin/cocapn.js start
+```
+
+Open `localhost:8787`, chat, close it, restart — your agent remembers everything.
 
 ## Is It Real?
 
 Yes. Here's the proof:
 
 - **[Live instance](https://cocapn-agent.magnus-digennaro.workers.dev)** running on Cloudflare Workers
-- **104 test files** (unit + integration) across the monorepo
-- **[CI pipeline](https://github.com/superinstance/cocapn/actions/workflows/ci.yml)** testing Node 18, 20, 22 on every push
+- **129 test files** (unit + integration) across the monorepo
+- **[CI pipeline](https://github.com/CedarBeach2019/cocapn/actions/workflows/ci.yml)** testing Node 18, 20, 22 on every push
 
 ## How It Compares
 
 | | **Cocapn** | **Aider** | **Cline** | **Cursor** |
 |--|-----------|----------|----------|-----------|
 | Self-hosted | Yes | Yes | Yes (VS Code) | No (cloud) |
-| Persistent memory | Git-backed Brain | None | None | Session only |
+| Persistent memory | Git-backed Brain | File-based | File-based | Session only |
 | Offline-first | Yes | Yes | Partial | No |
 | Fleet coordination | A2A protocol | None | None | None |
 | Plugin system | npm skills + sandbox | None | Extensions | Extensions |
@@ -85,13 +94,14 @@ cocapn init --template makerlog
 
 | Command | What it does |
 |---------|-------------|
-| `cocapn init` | Initialize a project |
+| `cocapn init` | Initialize a project (detect stack, self-assemble) |
 | `cocapn start` | Start the local bridge |
 | `cocapn deploy` | Deploy to Cloudflare Workers |
 | `cocapn status` | Show bridge and agent status |
 | `cocapn plugin install` | Install a plugin from npm |
-| `cocapn skills run` | Run a skill |
-| `cocapn fleet send` | Send a fleet message |
+| `cocapn skill load` | Load a skill into the bridge |
+| `cocapn template install` | Install a template |
+| `cocapn health` | Health check (local + cloud) |
 
 ## Contributing
 
@@ -100,6 +110,8 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code st
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+Fork of [superinstance/cocapn](https://github.com/superinstance/cocapn).
 
 ---
 

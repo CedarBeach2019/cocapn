@@ -51,20 +51,28 @@
 
     <section>
       <h2>Installation</h2>
-      <h3>Option 1: Global CLI (Recommended)</h3>
-      <p>Install the Cocapn CLI globally:</p>
-      <pre><code>npm install -g cocapn</code></pre>
+      <h3>Option 1: From Source (Recommended)</h3>
+      <p>Clone the repository, build, and run:</p>
+      <pre><code>git clone https://github.com/CedarBeach2019/cocapn.git
+cd cocapn
+npm install
+npm run build
+cd packages/cli
+node bin/cocapn.js init ~/.cocapn
+node bin/cocapn.js start</code></pre>
 
       <h3>Option 2: Create Cocapn (Scaffold)</h3>
-      <p>Create a new Cocapn instance without global installation:</p>
-      <pre><code>npx create-cocapn my-instance</code></pre>
+      <p>Create a new Cocapn instance without cloning:</p>
+      <pre><code>npx create-cocapn my-instance
+cd my-instance
+cocapn start</code></pre>
 
-      <h3>Option 3: Development Mode</h3>
-      <p>If you want to contribute or run from source:</p>
-      <pre><code>git clone https://github.com/CedarBeach2019/cocapn.git
-cd cocapn/packages/local-bridge
-npm install
-npm link</code></pre>
+      <h3>Option 3: Global CLI</h3>
+      <p>Install the Cocapn CLI globally:</p>
+      <pre><code>npm install -g cocapn
+cocapn init my-instance
+cd my-instance
+cocapn start</code></pre>
     </section>
 
     <section>
