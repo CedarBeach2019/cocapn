@@ -10,6 +10,7 @@
  *   - CloudAdapterRegistry (optional, when mode !== "local")
  *   - AdmiralClient (optional, for cross-device session sync)
  *   - BridgeServer (WebSocket with GitHub PAT auth)
+ *   - MiddlewarePipeline (HTTP request/response pipeline)
  *   - Optional Cloudflare tunnel via cloudflared
  */
 
@@ -47,6 +48,17 @@ import { RequestQueue } from "./queue/index.js";
 import { TenantRegistry } from "./multi-tenant/tenant-registry.js";
 import { TenantBridge } from "./multi-tenant/tenant-bridge.js";
 import type { BridgeConfig } from "./config/types.js";
+import {
+  MiddlewarePipeline,
+  errorHandler,
+  cors,
+  rateLimit,
+  modeSwitcher,
+  piiFilter,
+  timing,
+  logging,
+  auth,
+} from "./middleware/index.js";
 
 // ─── AdmiralClient (optional import — avoids hard dep on cloud-agents pkg) ────
 
@@ -106,6 +118,7 @@ export class Bridge {
   private tenantBridge:   TenantBridge;
   private requestQueue:   RequestQueue;
   private modeSwitcher:   ModeSwitcher;
+  private pipeline:       MiddlewarePipeline;
   private shuttingDown = false;
   private admiralInterval?: ReturnType<typeof setInterval>;
 
@@ -169,6 +182,17 @@ export class Bridge {
 
     // Initialize LLM request queue with backpressure
     this.requestQueue = new RequestQueue();
+
+    // Initialize HTTP middleware pipeline
+    this.pipeline = new MiddlewarePipeline();
+    this.pipeline.use(errorHandler());
+    this.pipeline.use(cors());
+    this.pipeline.use(rateLimit());
+    this.pipeline.use(modeSwitcher({ switcher: this.modeSwitcher }));
+    this.pipeline.use(auth({ skip: !!options.skipAuth }));
+    this.pipeline.use(piiFilter());
+    this.pipeline.use(timing());
+    this.pipeline.use(logging());
 
     this.router = new AgentRouter(
       {
@@ -459,6 +483,7 @@ export class Bridge {
   getLLMRouter():   LLMRouter | undefined { return this.llmRouter; }
   getTelemetry():   Telemetry            { return this.telemetry; }
   getRequestQueue(): RequestQueue        { return this.requestQueue; }
+  getPipeline():    MiddlewarePipeline   { return this.pipeline; }
 
   // ---------------------------------------------------------------------------
   // LLM initialization
