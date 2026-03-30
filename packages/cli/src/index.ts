@@ -60,7 +60,7 @@ import { createStatusCommand } from "./commands/status.js";
 import { createDeployCommand } from "./commands/deploy.js";
 import { createRollbackCommand } from "./commands/rollback.js";
 import { createSkillsCommand } from "./commands/skills.js";
-import { createTemplateCommand } from "./commands/templates.js";
+import { createTemplateCommand } from "./commands/template.js";
 import { createTokensCommand } from "./commands/tokens.js";
 import { createHealthCommand } from "./commands/health.js";
 import { createPluginCommand } from "./commands/plugin.js";
