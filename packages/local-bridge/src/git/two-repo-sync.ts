@@ -10,6 +10,9 @@ import { existsSync } from "fs";
 import { simpleGit, type StatusResult } from "simple-git";
 import { GitSync } from "./sync.js";
 import { DEFAULT_CONFIG, type BridgeConfig } from "../config/types.js";
+import { SyncPublisher, type PublishResult } from "../publishing/sync-publisher.js";
+import { Subscriber, type SubscribeResult } from "../publishing/subscriber.js";
+import type { Brain } from "../brain/index.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +51,8 @@ export type TwoRepoEventMap = {
   "private-pushed":    [];
   "public-pushed":     [];
   synced:              [];
+  published:           [result: PublishResult];
+  subscribed:          [result: SubscribeResult];
   error:               [repo: "private" | "public", err: Error];
 };
 
@@ -195,6 +200,56 @@ export class TwoRepoSync extends EventEmitter<TwoRepoEventMap> {
 
   getPublicGitSync(): GitSync | null {
     return this.publicSync;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Brain → Face publish pipeline
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Publish brain content to the face repo.
+   * Uses SyncPublisher to filter private data and write public-safe content.
+   */
+  async publish(brain: Brain): Promise<PublishResult> {
+    const publisher = new SyncPublisher({
+      privateRepoRoot: this.config.privateRepo.path,
+      publicRepoRoot: this.config.publicRepo.path,
+      brain,
+    });
+    const result = await publisher.publish();
+    this.emit("published", result);
+    return result;
+  }
+
+  /**
+   * Dry-run publish: returns what WOULD be published without writing.
+   */
+  async dryRunPublish(brain: Brain): Promise<PublishResult> {
+    const publisher = new SyncPublisher({
+      privateRepoRoot: this.config.privateRepo.path,
+      publicRepoRoot: this.config.publicRepo.path,
+      brain,
+    });
+    return publisher.dryRun();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Face → Brain subscribe pipeline
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Subscribe to face repo changes and update brain awareness.
+   * Pulls latest from face remote and updates RepoLearner.
+   */
+  async subscribe(brain: Brain): Promise<SubscribeResult> {
+    const subscriber = new Subscriber({
+      privateRepoRoot: this.config.privateRepo.path,
+      publicRepoRoot: this.config.publicRepo.path,
+      brain,
+    });
+    const result = await subscriber.subscribe();
+    this.emit("subscribed", result);
+    return result;
   }
 
   // ---------------------------------------------------------------------------
