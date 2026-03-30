@@ -1,0 +1,152 @@
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --border: #262626;
+  --text: #e5e5e5;
+  --text-dim: #a3a3a3;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --user-bg: #1e3a5f;
+  --assistant-bg: #1a1a2e;
+  --radius: 8px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header {
+  text-align: center;
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+header p {
+  color: var(--text-dim);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 0;
+}
+
+.message {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--radius);
+  max-width: 85%;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.message.user {
+  background: var(--user-bg);
+  margin-left: auto;
+  border-bottom-right-radius: 2px;
+}
+
+.message.assistant {
+  background: var(--assistant-bg);
+  margin-right: auto;
+  border-bottom-left-radius: 2px;
+}
+
+#chat-form {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+
+#chat-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  outline: none;
+}
+
+#chat-input:focus {
+  border-color: var(--accent);
+}
+
+button[type="submit"] {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+button[type="submit"]:hover {
+  background: var(--accent-hover);
+}
+
+footer {
+  text-align: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+footer p {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,12 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./cocapn:/app/cocapn
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env.local
+    restart: unless-stopped

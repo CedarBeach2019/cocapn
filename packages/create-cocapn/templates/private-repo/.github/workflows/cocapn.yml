@@ -1,0 +1,24 @@
+name: Cocapn Agent
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 */6 * * *"  # Run every 6 hours for maintenance
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm install
+
+      - name: Run agent maintenance
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: npx cocapn maintain

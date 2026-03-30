@@ -1,0 +1,9 @@
+name = "{{name}}"
+main = "worker.ts"
+compatibility_date = "2024-12-01"
+
+[site]
+bucket = "./public"
+
+[vars]
+AGENT_NAME = "{{name}}"

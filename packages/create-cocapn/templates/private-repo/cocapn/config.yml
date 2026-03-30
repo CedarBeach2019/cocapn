@@ -1,0 +1,26 @@
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  maxTokens: 4096
+  temperature: 0.7
+
+mode:
+  default: private
+
+brain:
+  autoSync: true
+  syncInterval: 300
+  maxMemories: 1000
+
+bridge:
+  port: 3100
+  host: localhost
+
+fleet:
+  enabled: false
+  agentId: ""
+
+publishing:
+  autoPublish: false
+  stripPrivateFacts: true
+  stripPII: true

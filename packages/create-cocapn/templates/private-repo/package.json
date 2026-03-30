@@ -1,0 +1,17 @@
+{
+  "name": "my-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "cocapn start",
+    "dev": "cocapn serve",
+    "onboard": "cocapn onboard",
+    "status": "cocapn status",
+    "chat": "cocapn chat",
+    "deploy": "cocapn deploy cloudflare"
+  },
+  "dependencies": {
+    "cocapn": "^0.2.0"
+  }
+}

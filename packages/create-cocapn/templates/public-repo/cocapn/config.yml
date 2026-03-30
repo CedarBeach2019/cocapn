@@ -1,0 +1,8 @@
+name: "{{name}}"
+domain: "{{domain}}"
+mode: public
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  maxTokens: 2048
+  temperature: 0.7

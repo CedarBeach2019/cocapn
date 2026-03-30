@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{name}} — AI Assistant</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>{{name}}</h1>
+      <p>AI Assistant powered by Cocapn</p>
+    </header>
+    <main>
+      <div id="chat-container">
+        <div id="messages"></div>
+        <form id="chat-form">
+          <input type="text" id="chat-input" placeholder="Ask me anything..." autocomplete="off">
+          <button type="submit">Send</button>
+        </form>
+      </div>
+    </main>
+    <footer>
+      <p>Powered by <a href="https://github.com/CedarBeach2019/cocapn">Cocapn</a> — The repo IS the agent</p>
+    </footer>
+  </div>
+  <script>
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('chat-input');
+    const messages = document.getElementById('messages');
+
+    function addMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = 'message ' + role;
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage('user', text);
+      input.value = '';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await res.json();
+        addMessage('assistant', data.reply || data.error || 'No response');
+      } catch (err) {
+        addMessage('assistant', 'Connection error — is the bridge running?');
+      }
+    });
+  </script>
+</body>
+</html>
