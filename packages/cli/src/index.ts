@@ -60,6 +60,7 @@ import { createMemoryCommand } from "./commands/memory.js";
 import { createExportCommand } from "./commands/export.js";
 import { createSyncCommand } from "./commands/sync.js";
 import { createWikiCommand } from "./commands/wiki.js";
+import { createFleetCommand } from "./commands/fleet.js";
 
 const VERSION = "0.1.0";
 
@@ -111,6 +112,9 @@ export function createCLI(): Command {
 
   // Telemetry commands
   program.addCommand(createTelemetryCommand());
+
+  // Fleet commands
+  program.addCommand(createFleetCommand());
 
   // Analysis commands
   program.addCommand(createTreeCommand());
