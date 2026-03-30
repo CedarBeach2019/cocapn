@@ -37,8 +37,6 @@ import { ConversationMemory } from "./brain/conversation-memory.js";
 import { Publisher } from "./publishing/publisher.js";
 import { SkillLoader } from "./skills/loader.js";
 import { SkillDecisionTree } from "./skills/decision-tree.js";
-import { RepoGraph } from "./graph/index.js";
-import { SelfAssembler, SelfAssembler as AssemblySystem } from "./assembly/index.js";
 import { CloudConnector, type CloudConnectorConfig } from "./cloud-bridge/connector.js";
 import { LLMRouter, type LLMRouterConfig } from "./llm/index.js";
 import { destroyAllAgents } from "./llm/keep-alive.js";
@@ -48,7 +46,6 @@ import { RequestQueue } from "./queue/index.js";
 import { TenantRegistry } from "./multi-tenant/tenant-registry.js";
 import { TenantBridge } from "./multi-tenant/tenant-bridge.js";
 import type { BridgeConfig } from "./config/types.js";
-import type { AssemblyResult } from "./assembly/index.js";
 
 // ─── AdmiralClient (optional import — avoids hard dep on cloud-agents pkg) ────
 
@@ -100,9 +97,6 @@ export class Bridge {
   private publisher:     Publisher | undefined;
   private skillLoader:   SkillLoader;
   private decisionTree:  SkillDecisionTree;
-  private repoGraph:     RepoGraph;
-  private assembly:      AssemblyResult | undefined;
-  private assembler:     AssemblySystem;
   private cloudConnector: CloudConnector | undefined;
   private llmRouter:     LLMRouter | undefined;
   private personalityManager: PersonalityManager;
@@ -117,9 +111,6 @@ export class Bridge {
     this.validator  = new SchemaValidator();
     this.config     = loadConfig(options.privateRepoRoot);
 
-    // Initialize self-assembly system
-    this.assembler = new SelfAssembler(options.privateRepoRoot);
-
     if (options.port !== undefined) {
       this.config = {
         ...this.config,
@@ -130,8 +121,7 @@ export class Bridge {
     this.secrets   = new SecretManager(options.privateRepoRoot);
     this.sync      = new GitSync(options.privateRepoRoot, this.config);
     this.modules   = new ModuleManager(options.privateRepoRoot);
-    this.repoGraph = new RepoGraph(options.privateRepoRoot);
-    this.brain     = new Brain(options.privateRepoRoot, this.config, this.sync, this.repoGraph);
+    this.brain     = new Brain(options.privateRepoRoot, this.config, this.sync);
     this.fleetKeys = new FleetKeyManager(options.privateRepoRoot);
 
     // Initialize skill system
@@ -200,7 +190,6 @@ export class Bridge {
       brain:          this.brain,
       skillLoader:    this.skillLoader,
       decisionTree:   this.decisionTree,
-      repoGraph:      this.repoGraph,
       enablePeerApi:  true,
       bridge:         this,
       llmRouter:      this.llmRouter,
@@ -230,11 +219,6 @@ export class Bridge {
       ...getSystemProperties(),
       mode: this.config.config.mode,
     });
-
-    // Run self-assembly on first run
-    console.info("[bridge] Running self-assembly…");
-    this.assembly = await this.assembler.assemble();
-    console.info(AssemblySystem.formatStatus(this.assembly));
 
     await this.secrets.loadIdentity();
 
@@ -413,7 +397,6 @@ export class Bridge {
   getConfig():      BridgeConfig           { return this.config; }
   getSecrets():     SecretManager          { return this.secrets; }
   getCloudAdapters(): CloudAdapterRegistry | undefined { return this.cloudAdapters; }
-  getAssembly():    AssemblyResult | undefined { return this.assembly; }
   getLLMRouter():   LLMRouter | undefined { return this.llmRouter; }
   getTelemetry():   Telemetry            { return this.telemetry; }
   getRequestQueue(): RequestQueue        { return this.requestQueue; }

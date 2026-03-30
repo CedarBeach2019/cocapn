@@ -119,7 +119,7 @@ async function dispatchRpc(
 ): Promise<void> {
   const { method, params, id } = req;
 
-  if (method.startsWith("bridge/") || method.startsWith("skill/") || method.startsWith("llm/") || method.startsWith("memory/") || method.startsWith("knowledge/") || method.startsWith("settings/") || method.startsWith("webhook/") || method.startsWith("graph/") || method.startsWith("tree/") || method.startsWith("personality/") || method.startsWith("tenant/")) {
+  if (method.startsWith("bridge/") || method.startsWith("skill/") || method.startsWith("llm/") || method.startsWith("memory/") || method.startsWith("knowledge/") || method.startsWith("settings/") || method.startsWith("webhook/") || method.startsWith("personality/") || method.startsWith("tenant/")) {
     const result = await handleBridgeMethod(method, params, ctx);
     ctx.sender.result(ws, id, result);
     return;
@@ -330,137 +330,6 @@ async function handleBridgeMethod(method: string, params: unknown, ctx: HandlerC
             tokenBudget: s.cartridge.tokenBudget || 500,
           })),
         },
-      };
-    }
-
-    case "bridge/assembly": {
-      const { handleAssemblyStatus } = await import("../handlers/assembly.js");
-      return handleAssemblyStatus(params, ctx);
-    }
-
-    case "graph/query": {
-      if (!ctx.brain || !ctx.brain.hasGraph()) {
-        return { error: "Repo graph not available" };
-      }
-      const graph = ctx.brain.getGraph()!;
-      const query = p.query as string | undefined;
-      const params = p.params as Record<string, unknown> | undefined;
-
-      if (!query) {
-        return { error: "Missing query type" };
-      }
-
-      switch (query) {
-        case "dependencies": {
-          const file = params?.file as string;
-          if (!file) return { error: "Missing file parameter" };
-          const deps = await graph.getDependencies(file);
-          return { dependencies: deps };
-        }
-
-        case "dependents": {
-          const file = params?.file as string;
-          if (!file) return { error: "Missing file parameter" };
-          const dependents = await graph.getDependents(file);
-          return { dependents };
-        }
-
-        case "callGraph": {
-          const functionId = params?.functionId as string;
-          if (!functionId) return { error: "Missing functionId parameter" };
-          const calls = await graph.getCallGraph(functionId);
-          return { calls };
-        }
-
-        case "reverseCallGraph": {
-          const functionId = params?.functionId as string;
-          if (!functionId) return { error: "Missing functionId parameter" };
-          const callers = await graph.getReverseCallGraph(functionId);
-          return { callers };
-        }
-
-        case "findByName": {
-          const pattern = params?.pattern as string;
-          if (!pattern) return { error: "Missing pattern parameter" };
-          const nodes = await graph.findByName(pattern);
-          return { nodes };
-        }
-
-        case "findByFile": {
-          const file = params?.file as string;
-          if (!file) return { error: "Missing file parameter" };
-          const nodes = await graph.findByFile(file);
-          return { nodes };
-        }
-
-        case "findExported": {
-          const nodes = await graph.findExported();
-          return { nodes };
-        }
-
-        case "impactRadius": {
-          const nodeId = params?.nodeId as string;
-          const depth = params?.depth as number | undefined;
-          if (!nodeId) return { error: "Missing nodeId parameter" };
-          const impact = await graph.getImpactRadius(nodeId, depth);
-          return { impact };
-        }
-
-        case "stats": {
-          const stats = await graph.stats();
-          return { stats };
-        }
-
-        default:
-          return { error: `Unknown graph query: ${query}` };
-      }
-    }
-
-    case "tree/search": {
-      const task = p.task as string | undefined;
-      if (!task) {
-        return { error: "Missing task parameter" };
-      }
-      // Return mock result for now - real implementation would run tree search
-      return {
-        success: true,
-        message: "Tree search is available. Use the tree-search handler for complex tasks.",
-        suggestion: "For complex tasks, consider using tree search to explore multiple approaches.",
-        task,
-      };
-    }
-
-    case "tree/status": {
-      return {
-        available: true,
-        active: false,
-        message: "Tree search is available for complex tasks",
-      };
-    }
-
-    case "bridge/repoMap": {
-      if (!ctx.repoGraph) {
-        return { error: "Repo graph not available" };
-      }
-      const maxTokens = typeof p.maxTokens === "number" ? p.maxTokens : 1024;
-      const focusFiles = p.focusFiles as string[] | undefined;
-      const excludePatterns = p.excludePatterns as string[] | undefined;
-
-      // Build exclude regex patterns if provided
-      const patterns = excludePatterns?.map(pat => new RegExp(pat));
-
-      const { RepoMapGenerator } = await import("../graph/repo-map.js");
-      const generator = new RepoMapGenerator(ctx.repoGraph.getDB());
-
-      const map = await generator.generate({
-        maxTokens,
-        focusFiles,
-        excludePatterns: patterns,
-      });
-
-      return {
-        map,
-        estimatedTokens: generator.estimateTokens(map),
       };
     }
 

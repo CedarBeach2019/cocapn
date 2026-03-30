@@ -19,7 +19,6 @@ import { Brain } from '../../src/brain/index.js';
 import { ConversationMemory } from '../../src/brain/conversation-memory.js';
 import { SkillLoader } from '../../src/skills/loader.js';
 import { SkillDecisionTree } from '../../src/skills/decision-tree.js';
-import { ExperimentManager } from '../../src/tree-search/manager.js';
 import { DEFAULT_CONFIG, type BridgeConfig } from '../../src/config/types.js';
 
 // Port management for parallel test execution
@@ -484,13 +483,6 @@ export function createTestSkill(name: string, overrides: Partial<import('../../s
     tokenBudget: 500,
     ...overrides,
   };
-}
-
-/**
- * Create a test tree search manager
- */
-export function createTestManager(config?: Partial<import('../../src/tree-search/types.js').TreeSearchConfig>): ExperimentManager {
-  return new ExperimentManager(config);
 }
 
 /**

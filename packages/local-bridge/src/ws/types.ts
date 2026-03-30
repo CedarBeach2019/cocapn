@@ -16,7 +16,6 @@ import type { AuditLogger } from "../security/audit.js";
 import type { ChatRouter } from "./chat-router.js";
 import type { SkillLoader } from "../skills/loader.js";
 import type { SkillDecisionTree } from "../skills/decision-tree.js";
-import type { RepoGraph } from "../graph/index.js";
 import type { HandoffProcessor } from "../handoff/processor.js";
 import type { SettingsManager } from "../settings/index.js";
 import type { Analytics } from "../analytics/index.js";
@@ -27,36 +26,7 @@ import type { TenantRegistry } from "../multi-tenant/tenant-registry.js";
 import type { TenantBridge } from "../multi-tenant/tenant-bridge.js";
 
 // Forward declaration for Bridge to avoid circular dependency
-export interface BridgeLike {
-  getAssembly(): {
-    success: boolean;
-    profile: {
-      language: string;
-      framework: string | undefined;
-      packageManager: string;
-      hasTests: boolean;
-      hasCI: boolean;
-      testCommand: string;
-      buildCommand: string | undefined;
-      entryPoints: string[];
-      totalFiles: number;
-      totalDirs: number;
-    };
-    template: {
-      template: string;
-      confidence: number;
-      modules: string[];
-      personality: string;
-      displayName: string;
-      description: string;
-    };
-    modules: string[];
-    skills: string[];
-    config: Record<string, unknown>;
-    duration: number;
-    error?: string;
-  } | undefined;
-}
+export interface BridgeLike {}
 
 // ─── Server options (unchanged from current contract) ────────────────────────
 
@@ -86,8 +56,6 @@ export interface BridgeServerOptions {
   skillLoader: SkillLoader | undefined;
   /** Decision tree — zero-shot skill discovery */
   decisionTree: SkillDecisionTree | undefined;
-  /** Repo graph — code structure knowledge graph */
-  repoGraph: RepoGraph | undefined;
   /** Handoff processor — enables inter-module delegation */
   handoffProcessor?: HandoffProcessor;
   /** Bridge instance — provides access to assembly and other bridge-level data */

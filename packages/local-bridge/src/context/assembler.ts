@@ -14,7 +14,6 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Brain } from '../brain/index.js';
 import type { SkillLoader } from '../skills/loader.js';
-import type { RepoGraph } from '../graph/index.js';
 import type { ContextBudget, Message } from './classifier.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,7 +41,6 @@ export interface AssembledContext {
 export interface ContextAssemblerOptions {
   brain?: Brain;
   skillLoader?: SkillLoader;
-  graph?: RepoGraph;
   systemPrompt?: string;
   repoRoot?: string;
 }
@@ -71,14 +69,12 @@ const TOKEN_COSTS = {
 export class ContextAssembler {
   private brain?: Brain;
   private skillLoader?: SkillLoader;
-  private graph?: RepoGraph;
   private systemPrompt: string;
   private repoRoot?: string;
 
   constructor(options: ContextAssemblerOptions = {}) {
     this.brain = options.brain;
     this.skillLoader = options.skillLoader;
-    this.graph = options.graph;
     this.systemPrompt = options.systemPrompt || this.defaultSystemPrompt();
     this.repoRoot = options.repoRoot;
   }
@@ -95,12 +91,8 @@ export class ContextAssembler {
     // Build system prompt
     const systemPrompt = this.buildSystemPrompt(request);
 
-    // Build repo map (if available and budget allows)
+    // Build repo map (if budget allows — graph module removed)
     let repoMap: string | undefined;
-    if (budget !== 'minimal' && this.graph) {
-      repoMap = await this.buildRepoMap(budget);
-      tokens += budget === 'full' ? TOKEN_COSTS.repoMapFull : TOKEN_COSTS.repoMapCompact;
-    }
 
     // Gather relevant facts (if budget allows)
     let relevantFacts: string[] = [];
@@ -154,24 +146,6 @@ export class ContextAssembler {
     }
 
     return prompt;
-  }
-
-  /**
-   * Build repo map from graph (compact or full version).
-   */
-  private async buildRepoMap(budget: ContextBudget): Promise<string> {
-    if (!this.graph) return '';
-
-    try {
-      // Import RepoMapGenerator dynamically to avoid circular deps
-      const { RepoMapGenerator } = await import('../graph/repo-map.js');
-      const generator = new RepoMapGenerator(this.graph);
-      const compact = budget !== 'full';
-      return await generator.generate(compact);
-    } catch (error) {
-      console.error('[context] Failed to build repo map:', error);
-      return '';
-    }
   }
 
   /**

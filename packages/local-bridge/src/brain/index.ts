@@ -28,7 +28,6 @@ import { InvertedIndex, tokenize } from "../utils/inverted-index.js";
 import { createEmbeddingProvider, type EmbeddingOptions } from "./embedding.js";
 import { createVectorStore, type VectorStore } from "./vector-store.js";
 import { createHybridSearch, HybridSearch } from "./hybrid-search.js";
-import type { RepoGraph } from "../graph/index.js";
 import { MemoryManager, type MemoryEntry, type MemoryManagerOptions } from "./memory-manager.js";
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────────
@@ -66,29 +65,16 @@ export class Brain {
   private hybridSearch: HybridSearch;
   private vectorStore: VectorStore | null = null;
   private embeddingProvider: any = null;
-  private repoGraph: RepoGraph | null = null;
   public memoryManager: MemoryManager | null = null;
 
-  constructor(repoRoot: string, config: BridgeConfig, sync: GitSync, repoGraph?: RepoGraph, memoryManagerOptions?: MemoryManagerOptions) {
+  constructor(repoRoot: string, config: BridgeConfig, sync: GitSync, _repoGraph?: unknown, memoryManagerOptions?: MemoryManagerOptions) {
     this.repoRoot = repoRoot;
     this.config = config;
     this.sync = sync;
     this.wikiIndex = new InvertedIndex();
-    this.repoGraph = repoGraph ?? null;
 
     // Initialize hybrid search with vector store (optional)
     this.hybridSearch = this.initializeVectorSearch();
-
-    // Initialize repo graph async (non-blocking)
-    if (this.repoGraph) {
-      setImmediate(async () => {
-        try {
-          await this.repoGraph.build();
-        } catch (error) {
-          console.error("[brain] Failed to build repo graph:", error);
-        }
-      });
-    }
 
     // Initialize memory manager (optional)
     if (memoryManagerOptions !== undefined && memoryManagerOptions !== false) {
@@ -433,50 +419,6 @@ export class Brain {
     const taskCount = this.listTasks().filter((t) => t.status === "active").length;
 
     return JSON.stringify({ soul, facts, activeTasks: taskCount });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Repo Graph Queries (optional)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Get the repo graph instance (if enabled).
-   */
-  getGraph(): RepoGraph | null {
-    return this.repoGraph;
-  }
-
-  /**
-   * Check if repo graph is available.
-   */
-  hasGraph(): boolean {
-    return this.repoGraph !== null;
-  }
-
-  /**
-   * Update graph when a file changes.
-   */
-  async updateGraphFile(filePath: string): Promise<void> {
-    if (this.repoGraph) {
-      try {
-        await this.repoGraph.updateFile(filePath);
-      } catch (error) {
-        console.error("[brain] Failed to update graph for file:", filePath, error);
-      }
-    }
-  }
-
-  /**
-   * Remove file from graph when deleted.
-   */
-  async removeGraphFile(filePath: string): Promise<void> {
-    if (this.repoGraph) {
-      try {
-        await this.repoGraph.removeFile(filePath);
-      } catch (error) {
-        console.error("[brain] Failed to remove file from graph:", filePath, error);
-      }
-    }
   }
 
   // ---------------------------------------------------------------------------

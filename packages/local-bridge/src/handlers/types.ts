@@ -25,7 +25,6 @@ import type { Sender } from "../ws/send.js";
 import type { TokenTracker } from "../metrics/token-tracker.js";
 import type { SkillLoader } from "../skills/loader.js";
 import type { SkillDecisionTree } from "../skills/decision-tree.js";
-import type { RepoGraph } from "../graph/index.js";
 import type { HandoffProcessor } from "../handoff/processor.js";
 import type { SettingsManager } from "../settings/index.js";
 import type { Analytics } from "../analytics/index.js";
@@ -36,36 +35,7 @@ import type { TenantRegistry } from "../multi-tenant/tenant-registry.js";
 import type { TenantBridge } from "../multi-tenant/tenant-bridge.js";
 
 // Forward declaration for Bridge to avoid circular dependency
-export interface BridgeLike {
-  getAssembly(): {
-    success: boolean;
-    profile: {
-      language: string;
-      framework: string | undefined;
-      packageManager: string;
-      hasTests: boolean;
-      hasCI: boolean;
-      testCommand: string;
-      buildCommand: string | undefined;
-      entryPoints: string[];
-      totalFiles: number;
-      totalDirs: number;
-    };
-    template: {
-      template: string;
-      confidence: number;
-      modules: string[];
-      personality: string;
-      displayName: string;
-      description: string;
-    };
-    modules: string[];
-    skills: string[];
-    config: Record<string, unknown>;
-    duration: number;
-    error?: string;
-  } | undefined;
-}
+export interface BridgeLike {}
 
 /**
  * Everything a handler needs to do its job.
@@ -88,7 +58,6 @@ export interface HandlerContext {
   readonly tokenTracker: TokenTracker | undefined;
   readonly skillLoader: SkillLoader | undefined;
   readonly decisionTree: SkillDecisionTree | undefined;
-  readonly repoGraph: RepoGraph | undefined;
   readonly handoffProcessor: HandoffProcessor | undefined;
   readonly bridge: BridgeLike | undefined;
   readonly settingsManager: SettingsManager | undefined;

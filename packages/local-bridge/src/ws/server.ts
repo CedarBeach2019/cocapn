@@ -45,14 +45,10 @@ import { handleA2aRequest } from "../handlers/a2a.js";
 import { handleModuleInstall } from "../handlers/module.js";
 import { handleChangeSkin } from "../handlers/skin.js";
 import { handleHttpPeerRequest } from "../handlers/peer.js";
-import { handleRunTests, handleGenerateTests, handleTestStatus } from "../handlers/test.js";
 import { HealthChecker, checkGit, checkBrain, checkDisk, checkWebSocket, type SystemHealthStatus } from "../health/index.js";
 import { createOfflineQueue, OfflineQueue } from "../cloud-bridge/offline-queue.js";
 import { TokenTracker } from "../metrics/token-tracker.js";
-import { RepoGraph } from "../graph/index.js";
 import { handleSkillList, handleSkillLoad, handleSkillUnload, handleSkillMatch, handleSkillContext, handleSkillStats } from "../handlers/skills.js";
-import { handleTreeSearch, handleTreeSearchStatus } from "../handlers/tree-search.js";
-import { handleGraphQuery, handleGraphStats } from "../handlers/graph.js";
 import { handleTokenStats, handleTokenEfficiency, handleTokenWaste } from "../handlers/metrics.js";
 import { handleBrowser } from "../handlers/browser.js";
 import {
@@ -111,12 +107,9 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     this.chatRouter = new ChatRouter();
     this.sender     = createSender();
 
-    // Initialize RepoGraph if not provided
-    const repoGraph = options.repoGraph || new RepoGraph(options.repoRoot);
-
     // Initialize HealthChecker with standard checks
     this.healthChecker = new HealthChecker();
-    this.setupHealthChecks(repoGraph);
+    this.setupHealthChecks();
 
     // Initialize OfflineQueue
     this.offlineQueue = new OfflineQueue(options.repoRoot);
@@ -134,7 +127,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     });
 
     // Build HandlerContext with all services
-    this.handlerCtx = this.buildHandlerContext(repoGraph);
+    this.handlerCtx = this.buildHandlerContext();
 
     // Build HandlerRegistry with all typed message handlers
     this.handlerRegistry = new Map([
@@ -146,9 +139,15 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       ["MODULE_INSTALL", handleModuleInstall],
       ["INSTALL_MODULE", handleModuleInstall],
       ["CHANGE_SKIN", handleChangeSkin],
-      ["RUN_TESTS", handleRunTests],
-      ["GENERATE_TESTS", handleGenerateTests],
-      ["TEST_STATUS", handleTestStatus],
+      ["RUN_TESTS", async (_ws, _clientId, msg, ctx) => {
+        ctx.sender.typed(_ws, { type: "TEST_STATUS", id: msg.id, status: "error", message: "Test runner removed" });
+      }],
+      ["GENERATE_TESTS", async (_ws, _clientId, msg, ctx) => {
+        ctx.sender.typed(_ws, { type: "TEST_STATUS", id: msg.id, status: "error", message: "Test generator removed" });
+      }],
+      ["TEST_STATUS", async (_ws, _clientId, msg, ctx) => {
+        ctx.sender.typed(_ws, { type: "TEST_STATUS", id: msg.id, status: "not_found", message: "Test system removed" });
+      }],
       ["BROWSER", handleBrowser],
       ["STREAMING_DIFF_START", handleStreamingDiffStart],
       ["STREAMING_DIFF_CHUNK", handleStreamingDiffChunk],
@@ -189,23 +188,12 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       ...(options.fleetKey     !== undefined ? { fleetKey:     options.fleetKey     } : {}),
       ...(options.conversationMemory !== undefined ? { conversationMemory: options.conversationMemory } : {}),
     });
-
-    // Build graph asynchronously (non-blocking)
-    setImmediate(async () => {
-      try {
-        await repoGraph.initialize();
-        await repoGraph.build();
-        console.info('[bridge] Repo graph built successfully');
-      } catch (error) {
-        console.error('[bridge] Failed to build repo graph:', error);
-      }
-    });
   }
 
   /**
    * Setup standard health checks
    */
-  private setupHealthChecks(repoGraph: RepoGraph): void {
+  private setupHealthChecks(): void {
     const port = this.options.config.config.port;
 
     // Git repository check
@@ -220,19 +208,6 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
     // WebSocket server check
     this.healthChecker.addCheck('websocket', checkWebSocket(port));
-
-    // Repo graph check
-    this.healthChecker.addCheck('graph', async () => {
-      try {
-        const stats = await repoGraph.stats();
-        if (stats.nodes === 0) {
-          return { status: 'degraded', message: 'Graph not built yet' };
-        }
-        return { status: 'healthy', message: `Graph has ${stats.nodes} nodes` };
-      } catch (error) {
-        return { status: 'unhealthy', message: error instanceof Error ? error.message : String(error) };
-      }
-    });
 
     // Skills check
     this.healthChecker.addCheck('skills', () => {
@@ -263,7 +238,7 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
    * Build the HandlerContext that all handlers need.
    * This provides access to all services without passing 8+ parameters.
    */
-  private buildHandlerContext(repoGraph: RepoGraph): HandlerContext {
+  private buildHandlerContext(): HandlerContext {
     const moduleManagerRef = { current: this.options.moduleManager };
 
     return {
@@ -281,7 +256,6 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       tokenTracker: this.tokenTracker,
       skillLoader: this.options.skillLoader,
       decisionTree: this.options.decisionTree,
-      repoGraph,
       bridge: this.options.bridge,
       settingsManager: this.settingsManager,
       analytics: this.options.analytics,

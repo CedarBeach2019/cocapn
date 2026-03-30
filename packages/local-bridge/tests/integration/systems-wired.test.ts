@@ -13,7 +13,6 @@ import { rm } from 'fs/promises';
 import { join } from 'path';
 import { SkillLoader } from '../../src/skills/loader.js';
 import { SkillDecisionTree } from '../../src/skills/decision-tree.js';
-import { RepoGraph } from '../../src/graph/index.js';
 import { TokenTracker } from '../../src/metrics/token-tracker.js';
 
 describe('Integration: Phase 9 Systems', () => {
@@ -147,46 +146,6 @@ describe('Integration: Phase 9 Systems', () => {
     });
   });
 
-  describe('Knowledge Graph', () => {
-    it('should build graph on bridge startup', async () => {
-      const repoGraph = new RepoGraph(testRepoRoot);
-
-      await repoGraph.initialize();
-      await repoGraph.build();
-
-      const stats = await repoGraph.stats();
-
-      // Graph should be built (even if empty)
-      expect(stats).toBeDefined();
-      expect(stats.files).toBeGreaterThanOrEqual(0);
-      expect(stats.symbols).toBeGreaterThanOrEqual(0);
-
-      repoGraph.close();
-    });
-
-    it('should query graph dependencies', async () => {
-      const repoGraph = new RepoGraph(testRepoRoot);
-
-      await repoGraph.initialize();
-
-      // Create a test TypeScript file
-      const { writeFile } = await import('fs/promises');
-      await writeFile(
-        join(testRepoRoot, 'test.ts'),
-        'export function test() { return 42; }'
-      );
-
-      await repoGraph.build();
-
-      // Query for the test file
-      const nodes = await repoGraph.findByFile('test.ts');
-
-      expect(nodes.length).toBeGreaterThan(0);
-
-      repoGraph.close();
-    });
-  });
-
   describe('Token Tracking', () => {
     it('should record token usage on message', () => {
       const tokenTracker = new TokenTracker({ maxRecords: 10000 });
@@ -223,30 +182,6 @@ describe('Integration: Phase 9 Systems', () => {
   });
 
   describe('Health Checks', () => {
-    it('should include graph health check', async () => {
-      const repoGraph = new RepoGraph(testRepoRoot);
-      await repoGraph.initialize();
-
-      const healthCheck = async () => {
-        try {
-          const stats = await repoGraph.stats();
-          if (stats.nodes === 0) {
-            return { status: 'degraded' as const, message: 'Graph not built yet' };
-          }
-          return { status: 'healthy' as const, message: `Graph has ${stats.nodes} nodes` };
-        } catch (error) {
-          return { status: 'unhealthy' as const, message: error instanceof Error ? error.message : String(error) };
-        }
-      };
-
-      const result = await healthCheck();
-
-      expect(result).toHaveProperty('status');
-      expect(['healthy', 'degraded', 'unhealthy']).toContain(result.status);
-
-      repoGraph.close();
-    });
-
     it('should include skills health check', () => {
       const skillLoader = new SkillLoader({
         maxColdSkills: 20,
