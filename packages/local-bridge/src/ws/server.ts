@@ -99,6 +99,8 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
   private tokenTracker:  TokenTracker;
   private settingsManager: SettingsManager;
   private healthInterval?: ReturnType<typeof setInterval>;
+  private draining = false;
+  private firstLLMResponseReceived = false;
 
   constructor(options: BridgeServerOptions) {
     super();
@@ -321,35 +323,65 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
 
   /**
    * Broadcast a shutdown event to all connected WebSocket clients,
-   * then close the server gracefully.
+   * then drain connections gracefully before closing the server.
    */
   async shutdown(): Promise<void> {
     if (!this.wss) return;
-    // Send shutdown event to all clients before terminating
-    for (const client of this.wss.clients) {
+
+    // Stop accepting new connections
+    this.draining = true;
+
+    // Send shutdown event to all clients with close code 1001
+    const clients = [...this.wss.clients];
+    for (const client of clients) {
       try {
         client.send(JSON.stringify({ type: "SHUTDOWN", message: "Bridge is shutting down" }));
+        client.close(1001, "Server shutting down");
       } catch {
         // Client may already be disconnected
       }
     }
-    // Brief grace period for clients to receive the event
-    await new Promise((r) => setTimeout(r, 100));
+
+    // Wait for connections to drain (5s timeout)
+    if (clients.length > 0) {
+      const drainDeadline = Date.now() + 5000;
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (this.wss!.clients.size === 0 || Date.now() >= drainDeadline) {
+            resolve();
+          } else {
+            setTimeout(check, 100);
+          }
+        };
+        check();
+      });
+    }
+
     await this.stop();
   }
 
   async stop(): Promise<void> {
+    this.stopHealthMonitoring();
     if (!this.wss) return;
+    // Force-terminate any remaining connections
     for (const client of this.wss.clients) {
-      client.terminate();
+      try { client.terminate(); } catch { /* already gone */ }
     }
     await new Promise<void>((resolve, reject) => {
       this.wss!.close((err) => (err ? reject(err) : resolve()));
     });
     this.wss = null;
-    this.httpSrv?.close();
-    this.httpSrv = null;
+
+    // Close HTTP server
+    if (this.httpSrv) {
+      await new Promise<void>((resolve) => {
+        this.httpSrv.close(() => resolve());
+      });
+      this.httpSrv = null;
+    }
+
     this.sessions.clear();
+    this.draining = false;
   }
 
   // ---------------------------------------------------------------------------
@@ -382,13 +414,34 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       this.options.brain.setMode(mode);
     }
 
-    // Handle health check endpoint
-    if (url === '/health') {
-      const health = await this.getHealthStatus();
+    // Handle deep health check endpoint
+    if (url === '/api/health' || (url.startsWith('/api/health?') && url.includes('deep=true'))) {
+      const isDeep = url.includes('deep=true');
+      const health = isDeep
+        ? await this.healthChecker.runDeep()
+        : await this.healthChecker.runAll();
       const statusCode = health.status === 'unhealthy' ? 503 :
                         health.status === 'degraded' ? 200 : 200;
       res.writeHead(statusCode, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(health, null, 2));
+      return;
+    }
+
+    // Handle existing /health endpoint (backward compatible)
+    if (url === '/health') {
+      const health = await this.healthChecker.runAll();
+      const statusCode = health.status === 'unhealthy' ? 503 :
+                        health.status === 'degraded' ? 200 : 200;
+      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(health, null, 2));
+      return;
+    }
+
+    // Handle readiness endpoint
+    if (url === '/api/ready') {
+      const ready = this.isReady();
+      res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ready }, null, 2));
       return;
     }
 
@@ -565,6 +618,11 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
     req: IncomingMessage,
     clientId: string
   ): Promise<void> {
+    if (this.draining) {
+      ws.close(1001, "Server is shutting down");
+      return;
+    }
+
     const authResult = await authenticateConnection(ws, req, {
       skipAuth: this.options.skipAuth,
       fleetKey: this.options.fleetKey,
@@ -635,6 +693,22 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       sessionCount: this.sessions.size,
       uptime: process.uptime(),
     };
+  }
+
+  /**
+   * Mark that the first successful LLM response has been received.
+   * Called when an LLM handler gets a successful response.
+   */
+  markLLMReady(): void {
+    this.firstLLMResponseReceived = true;
+  }
+
+  /**
+   * Check if the bridge is ready to serve requests.
+   * Returns true only after the first successful LLM response.
+   */
+  isReady(): boolean {
+    return this.firstLLMResponseReceived;
   }
 
   // ---------------------------------------------------------------------------

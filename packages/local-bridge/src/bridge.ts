@@ -106,6 +106,8 @@ export class Bridge {
   private tenantBridge:   TenantBridge;
   private requestQueue:   RequestQueue;
   private modeSwitcher:   ModeSwitcher;
+  private shuttingDown = false;
+  private admiralInterval?: ReturnType<typeof setInterval>;
 
   constructor(options: BridgeOptions) {
     this.options    = options;
@@ -314,8 +316,41 @@ export class Bridge {
         repoRoot:   this.options.privateRepoRoot,
       });
       beat();
-      setInterval(beat, 60_000);
+      this.admiralInterval = setInterval(beat, 60_000);
     }
+  }
+
+  /**
+   * Register process signal handlers for graceful shutdown.
+   * Call after start() completes.
+   */
+  registerSignalHandlers(): void {
+    const handler = (signal: string) => {
+      if (this.shuttingDown) return; // prevent double-shutdown
+      this.shuttingDown = true;
+      console.info(`[bridge] Received ${signal}, initiating graceful shutdown…`);
+      this.shutdown().catch((err) => {
+        console.error('[bridge] Shutdown failed:', err);
+        process.exit(1);
+      });
+    };
+
+    process.on('SIGINT', () => handler('SIGINT'));
+    process.on('SIGTERM', () => handler('SIGTERM'));
+
+    process.on('uncaughtException', (err) => {
+      console.error('[bridge] Uncaught exception:', err);
+      if (!this.shuttingDown) {
+        this.shuttingDown = true;
+        this.shutdown().catch(() => process.exit(1));
+      }
+    });
+
+    process.on('unhandledRejection', (reason) => {
+      console.error('[bridge] Unhandled rejection:', reason);
+      // Don't shutdown on unhandled rejection — log and continue.
+      // Only uncaught exceptions are fatal.
+    });
   }
 
   /**
@@ -324,8 +359,13 @@ export class Bridge {
    * analytics/telemetry, cleans up temp files, and logs shutdown status.
    */
   async shutdown(timeoutMs = 30_000): Promise<void> {
+    if (this.shuttingDown) return; // prevent double-shutdown
+    this.shuttingDown = true;
     console.info("[bridge] Shutting down gracefully…");
     const deadline = Date.now() + timeoutMs;
+
+    // Clear admiral heartbeat interval
+    if (this.admiralInterval) clearInterval(this.admiralInterval);
 
     // 1. Stop accepting new connections and broadcast shutdown event
     console.info("[bridge] Closing WebSocket connections…");
@@ -335,13 +375,16 @@ export class Bridge {
     this.sync.stopTimers();
     await this.watcher.stop();
 
-    // 3. Stop spawning new agents
+    // 3. Flush brain — ensure any held lock is released
+    this.flushBrain();
+
+    // 4. Stop spawning new agents
     await this.spawner.stopAll();
 
-    // 4. Destroy cloud connector
+    // 5. Destroy cloud connector
     this.cloudConnector?.destroy();
 
-    // 5. Wait for pending LLM requests to drain (with timeout)
+    // 6. Wait for pending LLM requests to drain (with timeout)
     console.info("[bridge] Waiting for pending LLM requests…");
     const drainDeadline = Math.max(deadline - Date.now(), 1_000);
     await this.requestQueue.shutdown();
@@ -354,17 +397,17 @@ export class Bridge {
       console.warn("[bridge] LLM drain timed out — forcing shutdown");
     }
 
-    // 6. Flush analytics/telemetry
+    // 7. Flush analytics/telemetry
     console.info("[bridge] Flushing telemetry…");
     await this.telemetry.shutdown();
 
-    // 7. Stop the HTTP server (already done by server.shutdown, but ensure clean)
+    // 8. Stop the HTTP server (already done by server.shutdown, but ensure clean)
     await this.server.stop();
 
-    // 8. Clean up temp files created by this bridge instance
+    // 9. Clean up temp files created by this bridge instance
     this.cleanupTempFiles();
 
-    // 9. Clear sensitive caches
+    // 10. Clear sensitive caches
     this.secrets.clearCache();
 
     console.info("[bridge] Shutdown complete.");
@@ -395,6 +438,18 @@ export class Bridge {
       }
     } catch {
       // tmpdir() unavailable — skip
+    }
+  }
+
+  /**
+   * Flush brain — release any held advisory lock so the store
+   * is not left in a locked state if the process restarts.
+   */
+  private flushBrain(): void {
+    try {
+      this.brain.releaseLock();
+    } catch {
+      // Lock may not be held — ignore
     }
   }
 

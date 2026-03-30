@@ -559,6 +559,20 @@ export class Brain {
     return this.repoLearner;
   }
 
+  /**
+   * Release the advisory lock if held.
+   * Safe to call even when no lock is active — removes the lock directory
+   * if it exists. Used during graceful shutdown to avoid orphaned locks.
+   */
+  releaseLock(): void {
+    const lockPath = join(this.repoRoot, ".cocapn", "brain", ".lock");
+    try {
+      rmdirSync(lockPath);
+    } catch {
+      // Lock not held or already released — ignore
+    }
+  }
+
   /** Lazily build the repo learner index on first access. */
   private async ensureRepoLearner(): Promise<void> {
     if (this.repoLearnerReady) return;
