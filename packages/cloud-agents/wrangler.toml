@@ -6,8 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 # KV — soul.md, facts, wiki (read-only public cache synced from private repo via git push)
 [[kv_namespaces]]
 binding = "AUTH_KV"
-id      = "YOUR_KV_NAMESPACE_ID"
-preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
+id      = "7df8c50d0647435ebb4c41435ad2aed5"
+preview_id = "33f89f7dbf234ab4bba4feeab162e41e"
 
 # Durable Objects — Admiral handles cross-device session persistence
 [[durable_objects.bindings]]
