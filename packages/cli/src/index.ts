@@ -68,6 +68,13 @@
  *   cocapn webhooks remove <url>               — Remove a webhook
  *   cocapn webhooks test <url>                 — Send test payload
  *   cocapn webhooks logs                       — Show recent deliveries
+ *   cocapn notify on                          — Enable notifications
+ *   cocapn notify off                         — Disable notifications
+ *   cocapn notify status                      — Show notification status
+ *   cocapn notify rules                       — List notification rules
+ *   cocapn notify rules add [opts]            — Add a notification rule
+ *   cocapn notify rules remove <id>           — Remove a notification rule
+ *   cocapn notify test                        — Send test notification
  *   cocapn version             — Show version
  */
 
@@ -107,6 +114,7 @@ import { createAuthCommand } from "./commands/auth.js";
 import { createPublishCommand } from "./commands/publish.js";
 import { createLearnCommand } from "./commands/learn.js";
 import { createWebhooksCommand } from "./commands/webhooks.js";
+import { createNotifyCommand } from "./commands/notify.js";
 
 const VERSION = "0.1.0";
 
@@ -204,6 +212,9 @@ export function createCLI(): Command {
 
   // Webhooks command
   program.addCommand(createWebhooksCommand());
+
+  // Notify command
+  program.addCommand(createNotifyCommand());
 
   return program;
 }
