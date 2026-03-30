@@ -29,6 +29,7 @@ import { makeGitHubClient } from "./github.js";
 import { AdmiralClient } from "./admiral.js";
 import { chatWithDeepSeek } from "./llm.js";
 import type { ChatMessage } from "./llm.js";
+import { CHAT_HTML } from "./chat-html.js";
 export { AdmiralDO } from "./admiral.js";
 
 // Auth imports
@@ -448,6 +449,15 @@ export default {
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
         },
+      });
+    }
+
+    // ── Chat UI ────────────────────────────────────────────────────────────────
+
+    // Serve the embedded chat UI at root and /chat
+    if ((pathname === "/" || pathname === "/chat") && request.method === "GET") {
+      return new Response(CHAT_HTML, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
 

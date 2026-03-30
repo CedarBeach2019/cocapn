@@ -1,4 +1,12 @@
-<!DOCTYPE html>
+/**
+ * Embedded chat UI HTML — served at / and /chat from the cloud worker.
+ *
+ * This is the same as packages/ui-minimal/index.html but with the WebSocket
+ * URL derived dynamically from window.location so it works on any domain
+ * without rebuild.
+ */
+
+export const CHAT_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -464,6 +472,7 @@
 
   <script>
     // ─── State ──────────────────────────────────────────────────────────────────
+    // Derive WebSocket URL from current page origin (works locally and on worker)
     const WS_URL = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host;
     let ws = null;
     let msgSeq = 0;
@@ -510,25 +519,20 @@
 
     function formatText(text) {
       let html = escapeHtml(text);
-      html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      html = html.replace(/\`\`\`(\w*)\\n?([\\s\\S]*?)\`\`\`/g, '<pre><code>$2</code></pre>');
+      html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
       return html;
     }
 
     function formatMarkdown(text) {
       let html = escapeHtml(text);
-      // Headings
       html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
       html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
       html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-      // Code blocks
-      html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-      // Inline code
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-      // Bold
-      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      // Italic
-      html = html.replace(/[^*]\*([^*]+)\*/g, ' <em>$1</em>');
+      html = html.replace(/\`\`\`(\w*)\\n?([\\s\\S]*?)\`\`\`/g, '<pre><code>$2</code></pre>');
+      html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+      html = html.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+      html = html.replace(/[^*]\\*([^*]+)\\*/g, ' <em>$1</em>');
       return html;
     }
 
@@ -566,13 +570,12 @@
     // ─── Tab Switching ────────────────────────────────────────────────────────
     function switchTab(tab) {
       activeTab = tab;
-      document.querySelectorAll('.sidebar-tab').forEach(t => {
+      document.querySelectorAll('.sidebar-tab').forEach(function(t) {
         t.classList.toggle('active', t.dataset.tab === tab);
       });
-      document.querySelectorAll('.tab-panel').forEach(p => {
+      document.querySelectorAll('.tab-panel').forEach(function(p) {
         p.classList.toggle('active', p.id === 'panel-' + tab);
       });
-      // Reset wiki view when switching to wiki tab
       if (tab === 'wiki') {
         showWikiList();
       }
@@ -633,7 +636,7 @@
         const parts = [];
         if (usage.inputTokens)  parts.push('in:' + usage.inputTokens);
         if (usage.outputTokens) parts.push('out:' + usage.outputTokens);
-        if (parts.length) info.textContent = parts.join(' · ');
+        if (parts.length) info.textContent = parts.join(' \\u00b7 ');
         bubble.appendChild(info);
       }
       streamingId = null;
@@ -658,9 +661,8 @@
       }
       $factsList.innerHTML = html;
 
-      // Bind delete buttons
-      $factsList.querySelectorAll('.chip-del').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+      $factsList.querySelectorAll('.chip-del').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
           e.stopPropagation();
           deleteFact(btn.dataset.key);
         });
@@ -674,12 +676,12 @@
 
     function addFact(key, value) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'MEMORY_ADD', id: rpcId(), key, value }));
+      ws.send(JSON.stringify({ type: 'MEMORY_ADD', id: rpcId(), key: key, value: value }));
     }
 
     function deleteFact(key) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'MEMORY_DELETE', id: rpcId(), key }));
+      ws.send(JSON.stringify({ type: 'MEMORY_DELETE', id: rpcId(), key: key }));
     }
 
     // ─── Wiki ──────────────────────────────────────────────────────────────────
@@ -690,7 +692,7 @@
       }
       const q = (filter || '').toLowerCase().trim();
       const filtered = q
-        ? wikiPages.filter(p => p.title.toLowerCase().includes(q) || p.file.toLowerCase().includes(q))
+        ? wikiPages.filter(function(p) { return p.title.toLowerCase().includes(q) || p.file.toLowerCase().includes(q); })
         : wikiPages;
 
       if (filtered.length === 0) {
@@ -707,8 +709,8 @@
       }
       $wikiList.innerHTML = html;
 
-      $wikiList.querySelectorAll('.wiki-item').forEach(item => {
-        item.addEventListener('click', () => {
+      $wikiList.querySelectorAll('.wiki-item').forEach(function(item) {
+        item.addEventListener('click', function() {
           readWikiPage(item.dataset.file);
         });
       });
@@ -734,7 +736,7 @@
 
     function readWikiPage(file) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'WIKI_READ', id: rpcId(), file }));
+      ws.send(JSON.stringify({ type: 'WIKI_READ', id: rpcId(), file: file }));
     }
 
     // ─── Soul ──────────────────────────────────────────────────────────────────
@@ -769,83 +771,71 @@
         return;
       }
 
-      ws.onopen = () => {
+      ws.onopen = function() {
         setStatus('on', 'Connected to cocapn');
         if (sidebarOpen) fetchAll();
       };
 
-      ws.onclose = () => {
+      ws.onclose = function() {
         setStatus('', 'Disconnected');
         streamingId = null;
         scheduleReconnect();
       };
 
-      ws.onerror = () => {};
+      ws.onerror = function() {};
 
-      ws.onmessage = (event) => {
+      ws.onmessage = function(event) {
         let data;
-        try { data = JSON.parse(event.data); } catch { return; }
+        try { data = JSON.parse(event.data); } catch(e) { return; }
 
-        // ── Typed message responses ──────────────────────────────────────────
-
-        // MEMORY_LIST response
         if (data.type === 'MEMORY_LIST' && Array.isArray(data.facts)) {
           facts.clear();
           for (const f of data.facts) {
-            if (f && f.key) facts.set(f.key, f.value ?? '');
+            if (f && f.key) facts.set(f.key, f.value || '');
           }
           renderFacts();
           return;
         }
 
-        // MEMORY_ADD response (confirm)
         if (data.type === 'MEMORY_ADD' && data.ok) {
           facts.set(data.key, data.value);
           renderFacts();
-          // Clear inputs
           $factKeyInput.value = '';
           $factValInput.value = '';
           $factKeyInput.focus();
           return;
         }
 
-        // MEMORY_DELETE response (confirm)
         if (data.type === 'MEMORY_DELETE' && data.ok) {
           facts.delete(data.key);
           renderFacts();
           return;
         }
 
-        // WIKI_LIST response
         if (data.type === 'WIKI_LIST' && Array.isArray(data.pages)) {
           wikiPages = data.pages;
           renderWikiList($wikiSearchInput.value);
           return;
         }
 
-        // WIKI_READ response
         if (data.type === 'WIKI_READ' && data.content !== undefined) {
           showWikiContent(data.file, data.content);
           return;
         }
 
-        // SOUL_GET response
         if (data.type === 'SOUL_GET' && data.content !== undefined) {
           renderSoul(data.content);
           return;
         }
 
-        // ── JSON-RPC responses ───────────────────────────────────────────────
         if (data.jsonrpc === '2.0' && data.result !== undefined) {
-          // Brain facts response (legacy RPC path)
           if (data.id && String(data.id).startsWith('facts-') && Array.isArray(data.result)) {
             facts.clear();
             for (const f of data.result) {
-              if (f && f.key) facts.set(f.key, f.value ?? '');
+              if (f && f.key) facts.set(f.key, f.value || '');
             }
             renderFacts();
           }
-          // Streaming content chunks
           if (data.result && data.result.type === 'content') {
             appendToLast(data.result.text);
           }
@@ -855,7 +845,6 @@
           return;
         }
 
-        // ── Typed message protocol — CHAT_STREAM ─────────────────────────────
         if (data.type === 'CHAT_STREAM') {
           if (data.id && !data.done && !streamingId) {
             const existing = $messages.querySelector('.msg[data-id="' + data.id + '"]');
@@ -871,17 +860,16 @@
           }
           if (data.done) {
             if (data.error) {
-              appendToLast('\n' + data.error);
+              appendToLast('\\n' + data.error);
             }
             finishStreaming();
           }
           return;
         }
 
-        // ── Events ──────────────────────────────────────────────────────────
         if (data.type === 'fact.remembered' || data.type === 'FACT_UPDATE') {
           if (data.fact && data.fact.key) {
-            facts.set(data.fact.key, data.fact.value ?? '');
+            facts.set(data.fact.key, data.fact.value || '');
             renderFacts();
           }
           return;
@@ -940,13 +928,13 @@
     }
 
     // ─── Event listeners ───────────────────────────────────────────────────────
-    $input.addEventListener('input', () => {
+    $input.addEventListener('input', function() {
       $sendBtn.disabled = !$input.value.trim();
       $input.style.height = 'auto';
       $input.style.height = Math.min($input.scrollHeight, 140) + 'px';
     });
 
-    $input.addEventListener('keydown', (e) => {
+    $input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         send();
@@ -956,18 +944,13 @@
     $sendBtn.addEventListener('click', send);
     $newSession.addEventListener('click', newSession);
 
-    // Brain toggle (desktop)
     $brainToggle.addEventListener('click', toggleSidebar);
-
-    // Sidebar toggle (mobile)
     $sidebarMobile.addEventListener('click', toggleSidebar);
 
-    // Tab switching
-    document.querySelectorAll('.sidebar-tab').forEach(tab => {
-      tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    document.querySelectorAll('.sidebar-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() { switchTab(tab.dataset.tab); });
     });
 
-    // Fact add
     function handleAddFact() {
       const key = $factKeyInput.value.trim();
       const val = $factValInput.value.trim();
@@ -976,28 +959,25 @@
     }
 
     $factAddBtn.addEventListener('click', handleAddFact);
-    $factValInput.addEventListener('keydown', (e) => {
+    $factValInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
         handleAddFact();
       }
     });
-    $factKeyInput.addEventListener('keydown', (e) => {
+    $factKeyInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
         $factValInput.focus();
       }
     });
 
-    // Wiki search
-    $wikiSearchInput.addEventListener('input', () => {
+    $wikiSearchInput.addEventListener('input', function() {
       renderWikiList($wikiSearchInput.value);
     });
 
-    // Wiki back button
     $wikiBackBtn.addEventListener('click', showWikiList);
 
-    // Auto-open sidebar on desktop
     if (window.innerWidth >= 768) {
       openSidebar();
     }
@@ -1007,4 +987,4 @@
     $input.focus();
   </script>
 </body>
-</html>
+</html>`;
