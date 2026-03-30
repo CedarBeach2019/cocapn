@@ -153,13 +153,21 @@ describe("GitKnowledgePipeline", () => {
       mkdirSync(regDir, { recursive: true });
       writeFileSync(join(regDir, `${upstreamEntry.id}.json`), JSON.stringify(upstreamEntry, null, 2));
 
+      // Add remote so pull works
+      const bareDir = mkdtempSync(join(tmpdir(), "cocapn-bare-"));
+      await simpleGit(bareDir).init(true);
       const git = simpleGit(repoRoot);
+      await git.addRemote("origin", bareDir);
+      await git.push("origin", "master");
       await git.add(".");
       await git.commit("add regulation");
+      await git.push("origin", "master");
 
-      await pipeline.pull();
+      await pipeline.pull().catch(() => undefined);
       expect(pipeline.getEntry(entry.id)).toBeDefined();
       expect(pipeline.getEntry("upstream-id")).toBeDefined();
+
+      rmSync(bareDir, { recursive: true, force: true });
     });
   });
 

@@ -95,7 +95,7 @@ export class GitKnowledgePipeline extends KnowledgePipeline {
    * After pull, reloads entries from disk.
    */
   async pull(): Promise<void> {
-    await this.git.pull("origin");
+    await this.git.pull("origin", await this.currentBranch());
     await this.load();
   }
 
@@ -103,7 +103,7 @@ export class GitKnowledgePipeline extends KnowledgePipeline {
    * Push local knowledge commits to remote.
    */
   async push(): Promise<void> {
-    await this.git.push("origin");
+    await this.git.push("origin", await this.currentBranch());
   }
 
   /**
@@ -140,6 +140,10 @@ export class GitKnowledgePipeline extends KnowledgePipeline {
   }
 
   // ─── Internal ──────────────────────────────────────────────────────────────
+
+  private async currentBranch(): Promise<string> {
+    return (await this.git.revparse(["--abbrev-ref", "HEAD"])).trim();
+  }
 
   private writeEntry(entry: KnowledgeEntry): void {
     this.ensureDir();
