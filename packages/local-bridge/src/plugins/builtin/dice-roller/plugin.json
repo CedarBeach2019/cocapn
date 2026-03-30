@@ -1,0 +1,9 @@
+{
+  "name": "dice-roller",
+  "version": "1.0.0",
+  "description": "Roll dice for TTRPG sessions — /roll d20, /roll 2d6+3",
+  "main": "index.js",
+  "permissions": ["brain.read", "chat.send"],
+  "hooks": ["chat.message"],
+  "config": { "defaultDice": "d20" }
+}

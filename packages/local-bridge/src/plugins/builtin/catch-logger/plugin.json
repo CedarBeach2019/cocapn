@@ -1,0 +1,9 @@
+{
+  "name": "catch-logger",
+  "version": "1.0.0",
+  "description": "Log fishing catches with species, weight, and location",
+  "main": "index.js",
+  "permissions": ["brain.read", "brain.write", "chat.send"],
+  "hooks": ["chat.message"],
+  "config": { "units": "lbs" }
+}

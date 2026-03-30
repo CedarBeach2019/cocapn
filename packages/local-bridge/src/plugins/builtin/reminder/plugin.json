@@ -1,0 +1,9 @@
+{
+  "name": "reminder",
+  "version": "1.0.0",
+  "description": "Set reminders — /remind me in 30min to check nets",
+  "main": "index.js",
+  "permissions": ["brain.read", "brain.write", "chat.send"],
+  "hooks": ["chat.message"],
+  "config": {}
+}
