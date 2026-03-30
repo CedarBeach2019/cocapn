@@ -194,6 +194,56 @@ export class HealthChecker {
   }
 
   /**
+   * Run all enabled health checks with extended timeout and latency tracking.
+   * Deep checks return per-check timing information.
+   */
+  async runDeep(options?: HealthCheckOptions): Promise<SystemHealthStatus> {
+    const enabledChecks = Array.from(this.checks.values()).filter((c) => c.enabled);
+
+    if (enabledChecks.length === 0) {
+      return {
+        status: 'healthy',
+        checks: [],
+        timestamp: new Date().toISOString(),
+        uptime: Date.now() - this.startTime,
+      };
+    }
+
+    // Run each check individually with timing
+    const checks: HealthCheckResult[] = [];
+    for (const check of enabledChecks) {
+      const startMs = Date.now();
+      const result = await this.runCheck(check.name, {
+        timeout: options?.timeout ?? 10_000, // Deep checks get longer timeout
+      });
+      checks.push({
+        ...result,
+        latency: Date.now() - startMs,
+      });
+    }
+
+    // Determine overall status
+    const hasErrors = checks.some((c) => c.status === 'error');
+    const hasWarnings = checks.some((c) => c.status === 'warn');
+
+    let status: 'healthy' | 'degraded' | 'unhealthy';
+    if (hasErrors) {
+      status = 'unhealthy';
+    } else if (hasWarnings) {
+      status = 'degraded';
+    } else {
+      status = 'healthy';
+    }
+
+    return {
+      status,
+      checks,
+      timestamp: new Date().toISOString(),
+      uptime: Date.now() - this.startTime,
+    };
+  }
+
+  /**
    * Get the current uptime in milliseconds
    */
   getUptime(): number {
