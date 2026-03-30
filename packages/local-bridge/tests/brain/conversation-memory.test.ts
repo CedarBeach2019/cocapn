@@ -6,8 +6,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { tmpdir, homedir } from "os";
 import { simpleGit } from "simple-git";
+
+// Ensure the lock directory exists (required by Brain.setFact / acquireLock)
+mkdirSync(join(homedir(), ".cocapn", "brain"), { recursive: true });
 import { Brain } from "../../src/brain/index.js";
 import { ConversationMemory, type ExtractedFact } from "../../src/brain/conversation-memory.js";
 import { GitSync } from "../../src/git/sync.js";

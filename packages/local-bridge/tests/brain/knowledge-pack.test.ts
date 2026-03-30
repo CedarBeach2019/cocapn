@@ -5,8 +5,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { rmSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { tmpdir, homedir } from "os";
 import { Brain } from "../../src/brain/index.js";
+
+// Ensure the lock directory exists (required by Brain.setFact / acquireLock)
+mkdirSync(join(homedir(), ".cocapn", "brain"), { recursive: true });
 import { MemoryManager } from "../../src/brain/memory-manager.js";
 import { KnowledgePackExporter, KnowledgePackImporter, type KnowledgePack } from "../../src/brain/knowledge-pack.js";
 import { loadConfig } from "../../src/config/loader.js";
