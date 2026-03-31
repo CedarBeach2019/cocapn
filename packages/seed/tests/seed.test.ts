@@ -23,6 +23,8 @@ import * as reflectMod from '../src/reflect.ts';
 import * as summarizeMod from '../src/summarize.ts';
 import * as pluginsMod from '../src/plugins.ts';
 import * as themeMod from '../src/theme.ts';
+import * as knowledgeMod from '../src/knowledge.ts';
+import * as learnMod from '../src/learn.ts';
 
 const { loadSoul, soulToSystemPrompt, buildFullSystemPrompt } = soulMod;
 const { Memory } = memoryMod;
@@ -1848,5 +1850,351 @@ describe('Web Multi-User', () => {
     const userMsgs = memory.messages.filter(m => m.content === 'Tagged message');
     expect(userMsgs.length).toBe(1);
     expect(userMsgs[0].userId).toBeTruthy();
+  });
+});
+
+// ─── Knowledge Tests ─────────────────────────────────────────────────────────
+
+describe('Knowledge', () => {
+  let testDir: string;
+  beforeEach(() => { testDir = join(tmpdir(), `cocapn-kb-${uid()}`); mkdirSync(testDir, { recursive: true }); });
+  afterEach(() => { try { rmSync(testDir, { recursive: true, force: true }); } catch {} });
+
+  it('saves and retrieves entries', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'TypeScript is compiled', source: 'docs', confidence: 0.9, tags: ['typescript'] });
+    const entries = kb.list();
+    expect(entries.length).toBe(1);
+    expect(entries[0].content).toBe('TypeScript is compiled');
+    expect(entries[0].tags).toContain('typescript');
+  });
+
+  it('updates existing entry by id', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'v1', source: 'test', confidence: 0.5, tags: [] });
+    kb.save({ id: 'k1', type: 'fact', content: 'v2', source: 'test', confidence: 0.8, tags: [] });
+    expect(kb.list().length).toBe(1);
+    expect(kb.list()[0].content).toBe('v2');
+  });
+
+  it('searches by keyword', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'React is a UI library', source: 'docs', confidence: 0.9, tags: ['react'] });
+    kb.save({ id: 'k2', type: 'fact', content: 'Node.js runs JavaScript server-side', source: 'docs', confidence: 0.9, tags: ['node'] });
+    const results = kb.search('react');
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe('k1');
+  });
+
+  it('searches by tag', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'Some content about servers', source: 'docs', confidence: 0.9, tags: ['devops', 'server'] });
+    const results = kb.search('server');
+    expect(results.length).toBe(1);
+  });
+
+  it('searches by type', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'procedure', content: 'Deploy steps', source: 'wiki', confidence: 0.8, tags: [] });
+    kb.save({ id: 'k2', type: 'fact', content: 'Different type', source: 'wiki', confidence: 0.8, tags: [] });
+    const results = kb.search('procedure');
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe('k1');
+  });
+
+  it('deletes an entry', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'To delete', source: 'test', confidence: 0.5, tags: [] });
+    expect(kb.delete('k1')).toBe(true);
+    expect(kb.list().length).toBe(0);
+  });
+
+  it('delete returns false for missing id', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    expect(kb.delete('nonexistent')).toBe(false);
+  });
+
+  it('lists with type filter', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'A fact', source: 'test', confidence: 0.5, tags: [] });
+    kb.save({ id: 'k2', type: 'procedure', content: 'A proc', source: 'test', confidence: 0.5, tags: [] });
+    expect(kb.list('fact').length).toBe(1);
+    expect(kb.list('fact')[0].id).toBe('k1');
+  });
+
+  it('exports all entries', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'Export test', source: 'test', confidence: 0.5, tags: [] });
+    const exported = kb.export();
+    expect(exported.length).toBe(1);
+    expect(exported[0].content).toBe('Export test');
+  });
+
+  it('clears all entries', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'A', source: 't', confidence: 0.5, tags: [] });
+    kb.save({ id: 'k2', type: 'fact', content: 'B', source: 't', confidence: 0.5, tags: [] });
+    kb.clear();
+    expect(kb.list().length).toBe(0);
+  });
+
+  it('persists across instances', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'Persistent', source: 'test', confidence: 0.7, tags: [] });
+    const kb2 = new knowledgeMod.Knowledge(testDir);
+    expect(kb2.list().length).toBe(1);
+    expect(kb2.list()[0].content).toBe('Persistent');
+  });
+
+  it('respects limit in search', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    for (let i = 0; i < 10; i++) kb.save({ id: `k${i}`, type: 'fact', content: `TypeScript fact ${i}`, source: 'test', confidence: 0.5, tags: [] });
+    expect(kb.search('typescript', 3).length).toBe(3);
+  });
+
+  it('respects limit in list', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    for (let i = 0; i < 10; i++) kb.save({ id: `k${i}`, type: 'fact', content: `Fact ${i}`, source: 'test', confidence: 0.5, tags: [] });
+    expect(kb.list(undefined, 3).length).toBe(3);
+  });
+
+  it('adds timestamp on save', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'Timestamped', source: 'test', confidence: 0.5, tags: [] });
+    expect(kb.list()[0].ts).toBeTruthy();
+  });
+});
+
+// ─── Knowledge File Import Tests ─────────────────────────────────────────────
+
+describe('Knowledge Import', () => {
+  let testDir: string;
+  beforeEach(() => { testDir = join(tmpdir(), `cocapn-kbimp-${uid()}`); mkdirSync(testDir, { recursive: true }); });
+  afterEach(() => { try { rmSync(testDir, { recursive: true, force: true }); } catch {} });
+
+  it('imports JSON file', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const jsonFile = join(testDir, 'data.json');
+    writeFileSync(jsonFile, JSON.stringify([
+      { id: 'j1', type: 'fact', content: 'JSON fact one', source: 'import', confidence: 0.7, tags: ['json'] },
+      { id: 'j2', type: 'fact', content: 'JSON fact two', source: 'import', confidence: 0.7, tags: ['json'] },
+    ]));
+    const count = kb.importFile(jsonFile);
+    expect(count).toBe(2);
+    expect(kb.list().length).toBe(2);
+  });
+
+  it('imports single JSON object', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const jsonFile = join(testDir, 'single.json');
+    writeFileSync(jsonFile, JSON.stringify({ id: 's1', type: 'fact', content: 'Single entry', source: 'import', confidence: 0.7, tags: [] }));
+    const count = kb.importFile(jsonFile);
+    expect(count).toBe(1);
+  });
+
+  it('imports markdown file with headers as types', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const mdFile = join(testDir, 'notes.md');
+    writeFileSync(mdFile, '# TypeScript\n\nTypeScript adds static types to JavaScript.\n\nIt compiles to plain JavaScript.\n\n# React\n\nReact is a component-based UI library.');
+    const count = kb.importFile(mdFile);
+    expect(count).toBeGreaterThanOrEqual(2);
+    const entries = kb.list();
+    expect(entries.some(e => e.type === 'typescript')).toBe(true);
+  });
+
+  it('imports text file with paragraphs as entries', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const txtFile = join(testDir, 'notes.txt');
+    writeFileSync(txtFile, 'First paragraph with enough content to import.\n\nSecond paragraph with more content for testing.\n\nshort\n\nThird real paragraph with sufficient text.');
+    const count = kb.importFile(txtFile);
+    expect(count).toBeGreaterThanOrEqual(2);
+    expect(kb.list().every(e => e.type === 'text')).toBe(true);
+  });
+
+  it('returns 0 for unknown file extension', () => {
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const csvFile = join(testDir, 'data.csv');
+    writeFileSync(csvFile, 'a,b,c');
+    expect(kb.importFile(csvFile)).toBe(0);
+  });
+});
+
+// ─── Learn Tests ──────────────────────────────────────────────────────────────
+
+describe('Learn', () => {
+  it('detects URLs in message', () => {
+    const result = learnMod.learn('Check out https://example.com/docs for more info');
+    expect(result.urls).toContain('https://example.com/docs');
+  });
+
+  it('detects multiple URLs', () => {
+    const result = learnMod.learn('See https://a.com and http://b.org/page');
+    expect(result.urls.length).toBe(2);
+  });
+
+  it('detects facts with "according to" source', () => {
+    const result = learnMod.learn('TypeScript was created by Microsoft according to the official docs');
+    expect(result.facts.length).toBeGreaterThanOrEqual(1);
+    expect(result.facts[0].content).toContain('TypeScript');
+    expect(result.facts[0].source).toContain('official docs');
+  });
+
+  it('detects facts with "(source: ...)" pattern', () => {
+    const result = learnMod.learn('React was developed by Facebook (source: reactjs.org)');
+    expect(result.facts.length).toBeGreaterThanOrEqual(1);
+    expect(result.facts[0].source).toContain('reactjs.org');
+  });
+
+  it('detects file mentions', () => {
+    const result = learnMod.learn('Take a look at config.ts for the settings');
+    expect(result.fileMentions.some(f => f.includes('config.ts'))).toBe(true);
+  });
+
+  it('excludes URLs from file mentions', () => {
+    const result = learnMod.learn('Visit https://example.com/page.html for details');
+    expect(result.fileMentions).toEqual([]);
+  });
+
+  it('returns empty results for plain message', () => {
+    const result = learnMod.learn('Hello, how are you?');
+    expect(result.urls).toEqual([]);
+    expect(result.facts).toEqual([]);
+  });
+
+  it('saves learnings to knowledge base', () => {
+    const testDir = join(tmpdir(), `cocapn-lsave-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const count = learnMod.saveLearnings(kb, 'TypeScript compiles to JS according to the handbook. See https://typescriptlang.org');
+    expect(count).toBeGreaterThanOrEqual(2);
+    expect(kb.list().length).toBeGreaterThanOrEqual(2);
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('importToKnowledge handles missing file', () => {
+    const testDir = join(tmpdir(), `cocapn-limp-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const result = learnMod.importToKnowledge(kb, '/nonexistent/file.json');
+    expect(result).toContain('not found');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('importToKnowledge imports valid file', () => {
+    const testDir = join(tmpdir(), `cocapn-limp2-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const jsonFile = join(testDir, 'data.json');
+    writeFileSync(jsonFile, JSON.stringify([{ id: 'l1', type: 'fact', content: 'test fact', source: 'import', confidence: 0.7, tags: [] }]));
+    const result = learnMod.importToKnowledge(kb, jsonFile);
+    expect(result).toContain('Imported 1');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('handleKnowledgeCommand searches', () => {
+    const testDir = join(tmpdir(), `cocapn-lcmd-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'TypeScript is strongly typed', source: 'docs', confidence: 0.9, tags: ['ts'] });
+    const result = learnMod.handleKnowledgeCommand(kb, '/knowledge search typescript');
+    expect(result).toContain('TypeScript');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('handleKnowledgeCommand lists entries', () => {
+    const testDir = join(tmpdir(), `cocapn-lcmd2-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'A fact entry', source: 'test', confidence: 0.5, tags: [] });
+    const result = learnMod.handleKnowledgeCommand(kb, '/knowledge list');
+    expect(result).toContain('fact entry');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('handleKnowledgeCommand clears', () => {
+    const testDir = join(tmpdir(), `cocapn-lcmd3-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'x', source: 't', confidence: 0.5, tags: [] });
+    const result = learnMod.handleKnowledgeCommand(kb, '/knowledge clear');
+    expect(result).toContain('cleared');
+    expect(kb.list().length).toBe(0);
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('handleKnowledgeCommand shows usage for unknown sub', () => {
+    const testDir = join(tmpdir(), `cocapn-lcmd4-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const result = learnMod.handleKnowledgeCommand(kb, '/knowledge unknown');
+    expect(result).toContain('Usage');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('handleKnowledgeCommand search requires query', () => {
+    const testDir = join(tmpdir(), `cocapn-lcmd5-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const result = learnMod.handleKnowledgeCommand(kb, '/knowledge search');
+    expect(result).toContain('Usage');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it('handleKnowledgeCommand shows empty when no entries', () => {
+    const testDir = join(tmpdir(), `cocapn-lcmd6-${uid()}`);
+    mkdirSync(testDir, { recursive: true });
+    const kb = new knowledgeMod.Knowledge(testDir);
+    const result = learnMod.handleKnowledgeCommand(kb, '/knowledge list');
+    expect(result).toContain('no knowledge');
+    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+});
+
+// ─── Knowledge in Context Tests ──────────────────────────────────────────────
+
+describe('Knowledge in Context', () => {
+  let testDir: string;
+  beforeEach(() => { testDir = join(tmpdir(), `cocapn-kbctx-${uid()}`); mkdirSync(testDir, { recursive: true }); });
+  afterEach(() => { try { rmSync(testDir, { recursive: true, force: true }); } catch {} });
+
+  function makeSoul() { return { name: 'TestBot', tone: 'friendly', model: 'deepseek', body: 'I help.' }; }
+
+  it('includes relevant knowledge entries in context', () => {
+    const mem = new Memory(testDir);
+    const awareness = new Awareness(testDir);
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'Vitest is a fast unit test framework', source: 'docs', confidence: 0.9, tags: ['testing', 'vitest'] });
+    const result = contextMod.buildContext({ soul: makeSoul(), memory: mem, awareness, userMessage: 'Tell me about vitest testing', knowledge: kb });
+    expect(result).toContain('Vitest');
+    expect(result).toContain('Known facts');
+  });
+
+  it('does not include knowledge section when no match', () => {
+    const mem = new Memory(testDir);
+    const awareness = new Awareness(testDir);
+    const kb = new knowledgeMod.Knowledge(testDir);
+    kb.save({ id: 'k1', type: 'fact', content: 'Salmon migrate upstream during spawning season', source: 'docs', confidence: 0.9, tags: ['fishing'] });
+    const result = contextMod.buildContext({ soul: makeSoul(), memory: mem, awareness, userMessage: 'Tell me about TypeScript programming', knowledge: kb });
+    expect(result).not.toContain('Known facts');
+  });
+
+  it('works without knowledge base (backward compat)', () => {
+    const mem = new Memory(testDir);
+    const awareness = new Awareness(testDir);
+    const result = contextMod.buildContext({ soul: makeSoul(), memory: mem, awareness, userMessage: 'hello' });
+    expect(result).toContain('You are TestBot');
+    expect(result).not.toContain('Known facts');
+  });
+
+  it('limits knowledge to top 5 entries', () => {
+    const mem = new Memory(testDir);
+    const awareness = new Awareness(testDir);
+    const kb = new knowledgeMod.Knowledge(testDir);
+    for (let i = 0; i < 10; i++) {
+      kb.save({ id: `k${i}`, type: 'fact', content: `React fact number ${i} about components`, source: 'docs', confidence: 0.9, tags: ['react'] });
+    }
+    const result = contextMod.buildContext({ soul: makeSoul(), memory: mem, awareness, userMessage: 'Tell me about react components', knowledge: kb });
+    const matches = result.match(/React fact/g);
+    expect(matches.length).toBeLessThanOrEqual(5);
   });
 });
