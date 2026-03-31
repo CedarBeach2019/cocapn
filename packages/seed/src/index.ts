@@ -28,6 +28,7 @@ import type { ChatContext } from './plugins.js';
 import { A2AHub } from './a2a.js';
 import { Knowledge } from './knowledge.js';
 import { startMcpServer } from './mcp.js';
+import { generateRepoMap } from './repo-map.js';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -367,6 +368,13 @@ async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, syst
     if (input === '/clear') { console.log(`${GR}Context cleared.${R}`); rl.prompt(); continue; }
     if (input === '/whoami') { console.log(cmdWhoami(awareness, memory)); rl.prompt(); continue; }
     if (input === '/status') { console.log(cmdStatus(awareness, memory, soul, knowledge ?? new Knowledge(process.cwd()), a2a)); rl.prompt(); continue; }
+    if (input === '/repo-map') {
+      const entries = generateRepoMap(awareness['repoDir']);
+      for (const e of entries.slice(0, 20)) {
+        console.log(`  ${G}${e.path}${R} ${GR}(${e.importCount} deps, rank: ${e.rank.toFixed(4)}) ${GR}${e.exports.slice(0, 5).join(', ')}${R}`);
+      }
+      rl.prompt(); continue;
+    }
     if (input === '/export') { console.log(cmdExport(memory)); rl.prompt(); continue; }
     if (input.startsWith('/import ')) { console.log(cmdImport(memory, input.slice(8))); rl.prompt(); continue; }
 
