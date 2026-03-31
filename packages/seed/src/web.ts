@@ -17,6 +17,8 @@
  *   POST /api/a2a/message   → receive and process A2A message
  *   GET  /api/a2a/peers     → list known agents
  *   POST /api/a2a/disconnect → remove peer
+ *   GET  /api/users         → list known users
+ *   POST /api/user/identify  → set name for session user
  *
  * Zero dependencies. Uses only Node.js built-ins.
  */
@@ -24,6 +26,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { LLM } from './llm.js';
 import type { Memory } from './memory.js';
 import type { Awareness } from './awareness.js';
@@ -31,6 +34,36 @@ import type { Soul } from './soul.js';
 import { log as gitLog, stats as gitStats, diff as gitDiff } from './git.js';
 import { loadTheme, themeToCSS } from './theme.js';
 import type { A2AHub } from './a2a.js';
+
+// ─── Session helpers ───────────────────────────────────────────────────────────
+
+const sessions: Map<string, string> = new Map(); // sessionId → userId
+
+function getSessionId(req: IncomingMessage): string | undefined {
+  const cookies = req.headers.cookie ?? '';
+  const match = cookies.match(/cocapn-session=([^;]+)/);
+  return match?.[1];
+}
+
+function setSessionCookie(res: ServerResponse, sessionId: string): void {
+  res.setHeader('Set-Cookie', `cocapn-session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`);
+}
+
+function resolveSession(req: IncomingMessage, res: ServerResponse, memory: Memory): { sessionId: string; userId: string } {
+  let sessionId = getSessionId(req);
+  let userId = sessionId ? sessions.get(sessionId) : undefined;
+
+  if (!sessionId || !userId) {
+    sessionId = randomUUID();
+    userId = randomUUID();
+    const anonName = `user_${userId.slice(0, 6)}`;
+    memory.getOrCreateUser(userId, anonName);
+    sessions.set(sessionId, userId);
+    setSessionCookie(res, sessionId);
+  }
+
+  return { sessionId, userId };
+}
 
 // ─── Inline HTML (loaded from public/index.html at startup) ────────────────────
 
@@ -176,6 +209,28 @@ export function startWebServer(
       return;
     }
 
+    // GET /api/users — list known users
+    if (req.method === 'GET' && path === '/api/users') {
+      json(res, { users: memory.getUsers() });
+      return;
+    }
+
+    // POST /api/user/identify — set name for session user
+    if (req.method === 'POST' && path === '/api/user/identify') {
+      const body = await readBody(req);
+      try {
+        const { name } = JSON.parse(body) as { name?: string };
+        if (!name?.trim()) { json(res, { error: 'Name is required' }, 400); return; }
+        const { userId } = resolveSession(req, res, memory);
+        const user = memory.getOrCreateUser(userId, name.trim());
+        user.name = name.trim();
+        user.lastSeen = new Date().toISOString();
+        memory['save']();
+        json(res, { ok: true, user: { id: userId, name: user.name } });
+      } catch { json(res, { error: 'Invalid JSON' }, 400); }
+      return;
+    }
+
     // GET /api/git/log — recent commits
     if (req.method === 'GET' && path === '/api/git/log') {
       json(res, gitLog(repoDir));
@@ -196,7 +251,8 @@ export function startWebServer(
 
     // POST /api/chat — streaming chat
     if (req.method === 'POST' && path === '/api/chat') {
-      await handleChat(req, res, llm, memory, awareness, systemPrompt);
+      const { userId } = resolveSession(req, res, memory);
+      await handleChat(req, res, llm, memory, awareness, systemPrompt, userId);
       return;
     }
 
@@ -267,22 +323,35 @@ export function startWebServer(
 async function handleChat(
   req: IncomingMessage, res: ServerResponse,
   llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string,
+  userId?: string,
 ): Promise<void> {
   const body = await readBody(req);
   let userMessage: string;
+  let userName: string | undefined;
   try {
-    const parsed = JSON.parse(body) as { message?: string };
+    const parsed = JSON.parse(body) as { message?: string; name?: string };
     userMessage = parsed.message ?? '';
+    userName = parsed.name;
   } catch { json(res, { error: 'Invalid JSON' }, 400); return; }
 
   if (!userMessage.trim()) { json(res, { error: 'Empty message' }, 400); return; }
 
-  // Build LLM context
+  // Register name if provided
+  if (userId && userName?.trim()) {
+    const user = memory.getOrCreateUser(userId, userName.trim());
+    user.name = userName.trim();
+  }
+
+  // Build user-scoped LLM context
   const awarenessText = awareness.narrate();
-  const context = memory.formatContext(20);
-  const facts = memory.formatFacts();
+  const context = userId
+    ? memory.recentForUser(userId, 20).map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${m.content}`).join('\n\n')
+    : memory.formatContext(20);
+  const facts = userId ? memory.formatFactsForUser(userId) : memory.formatFacts();
+  const userNameContext = userId ? `\nYou are talking to ${memory.getOrCreateUser(userId).name}.` : '';
+
   const fullSystem = [
-    systemPrompt, '', '## Who I Am', awarenessText, '',
+    systemPrompt + userNameContext, '', '## Who I Am', awarenessText, '',
     facts ? `## What I Remember\n${facts}` : '', '',
     '## Recent Conversation', context || '(start of conversation)',
   ].join('\n');
@@ -314,7 +383,7 @@ async function handleChat(
   res.write('data: [DONE]\n\n');
   res.end();
 
-  // Save to memory
-  memory.addMessage('user', userMessage);
-  if (fullResponse) memory.addMessage('assistant', fullResponse);
+  // Save to memory with userId
+  memory.addMessage('user', userMessage, userId);
+  if (fullResponse) memory.addMessage('assistant', fullResponse, userId);
 }
