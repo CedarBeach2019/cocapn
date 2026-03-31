@@ -23,6 +23,8 @@ import { Awareness } from './awareness.js';
 import { loadSoul, soulToSystemPrompt } from './soul.js';
 import type { Soul } from './soul.js';
 import { startWebServer } from './web.js';
+import { PluginLoader } from './plugins.js';
+import type { ChatContext } from './plugins.js';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -41,10 +43,55 @@ function loadConfig(repoDir: string): Config {
   for (const name of ['cocapn.json', 'cocapn/cocapn.json']) {
     const p = join(repoDir, name);
     if (existsSync(p)) {
-      try { return JSON.parse(readFileSync(p, 'utf-8')) as Config; } catch { /* skip */ }
+      try {
+        const raw = readFileSync(p, 'utf-8');
+        const parsed = JSON.parse(raw);
+        const errors = validateConfig(parsed);
+        if (errors.length > 0) {
+          console.error(`[cocapn] Invalid config in ${name}:`);
+          for (const e of errors) console.error(`  - ${e}`);
+          process.exit(1);
+        }
+        return parsed as Config;
+      } catch (e: unknown) {
+        console.error(`[cocapn] Failed to parse ${name}: ${String(e)}`);
+        process.exit(1);
+      }
     }
   }
   return {};
+}
+
+function validateConfig(raw: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  if (raw.mode !== undefined) {
+    if (typeof raw.mode !== 'string' || !['private', 'public'].includes(raw.mode)) {
+      errors.push('mode must be "private" or "public"');
+    }
+  }
+  if (raw.port !== undefined) {
+    if (typeof raw.port !== 'number' || !Number.isInteger(raw.port) || raw.port < 1 || raw.port > 65535) {
+      errors.push('port must be a number between 1 and 65535');
+    }
+  }
+  if (raw.llm !== undefined) {
+    if (typeof raw.llm !== 'object' || raw.llm === null) {
+      errors.push('llm must be an object');
+    } else {
+      const llm = raw.llm as Record<string, unknown>;
+      if (llm.provider !== undefined && typeof llm.provider !== 'string') errors.push('llm.provider must be a string');
+      if (llm.model !== undefined && typeof llm.model !== 'string') errors.push('llm.model must be a string');
+      if (llm.baseUrl !== undefined && typeof llm.baseUrl !== 'string') errors.push('llm.baseUrl must be a string');
+      if (llm.apiKey !== undefined && typeof llm.apiKey !== 'string') errors.push('llm.apiKey must be a string');
+      if (llm.temperature !== undefined && (typeof llm.temperature !== 'number' || llm.temperature < 0 || llm.temperature > 2)) {
+        errors.push('llm.temperature must be a number between 0 and 2');
+      }
+      if (llm.maxTokens !== undefined && (typeof llm.maxTokens !== 'number' || llm.maxTokens < 1)) {
+        errors.push('llm.maxTokens must be a positive number');
+      }
+    }
+  }
+  return errors;
 }
 
 function resolveLLMConfig(config: Config): LLMConfig {
@@ -172,6 +219,7 @@ function cmdHelp(agentName: string): string {
     `${G}  /git stats${R}         Repo statistics`,
     `${G}  /git diff${R}          Uncommitted changes`,
     `${G}  /clear${R}             Clear context`,
+    `${G}  /plugins${R}           List loaded plugins`,
     `${G}  /quit${R}              Exit`,
   ].join('\n');
 }
@@ -218,7 +266,7 @@ function cmdImport(memory: Memory, filePath: string): string {
 
 // ─── Terminal REPL ─────────────────────────────────────────────────────────────
 
-async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string, soulName: string): Promise<void> {
+async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string, soulName: string, pluginLoader?: PluginLoader): Promise<void> {
   const self = awareness.narrate();
   const B = '\x1b[1m', C = '\x1b[36m', G = '\x1b[32m', GR = '\x1b[90m', R = '\x1b[0m';
 
@@ -241,6 +289,33 @@ async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, syst
     if (input === '/whoami') { console.log(cmdWhoami(awareness, memory)); rl.prompt(); continue; }
     if (input === '/export') { console.log(cmdExport(memory)); rl.prompt(); continue; }
     if (input.startsWith('/import ')) { console.log(cmdImport(memory, input.slice(8))); rl.prompt(); continue; }
+
+    // /plugins command
+    if (input === '/plugins') {
+      if (!pluginLoader || pluginLoader.plugins.length === 0) {
+        console.log(`${GR}(no plugins loaded)${R}`);
+      } else {
+        const G2 = '\x1b[32m', R2 = '\x1b[0m';
+        for (const p of pluginLoader.list()) {
+          const cmds = p.commands.length > 0 ? ` — commands: ${p.commands.map(c => `/${c}`).join(', ')}` : '';
+          console.log(`  ${G2}${p.name}@${p.version}${R2}${cmds}`);
+        }
+      }
+      rl.prompt(); continue;
+    }
+
+    // Plugin commands
+    if (pluginLoader && input.startsWith('/')) {
+      const pluginCmds = pluginLoader.getCommands();
+      const parts = input.slice(1).split(/\s+(.*)/);
+      const cmdName = parts[0];
+      const cmdArgs = parts[1] ?? '';
+      if (pluginCmds[cmdName]) {
+        const result = await pluginCmds[cmdName](cmdArgs);
+        console.log(result);
+        rl.prompt(); continue;
+      }
+    }
 
     // /memory commands
     if (input === '/memory' || input === '/memory list') { console.log(cmdMemoryList(memory)); rl.prompt(); continue; }
@@ -284,6 +359,14 @@ async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, syst
     let full = '';
     let interrupted = false;
 
+    // Run before-chat hooks
+    let chatCtx: ChatContext | undefined;
+    if (pluginLoader) {
+      chatCtx = await pluginLoader.runBeforeChat(input, { message: input, facts: memory.facts });
+      if (chatCtx._weatherHint) process.stdout.write(`\n${GR}[weather] ${chatCtx._weatherHint}${R}\n`);
+      if (chatCtx._tzHint) process.stdout.write(`\n${GR}[tz] ${chatCtx._tzHint}${R}\n`);
+    }
+
     // Allow Ctrl+C to interrupt streaming
     const onInterrupt = () => { interrupted = true; };
     process.once('SIGINT', onInterrupt);
@@ -295,6 +378,11 @@ async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, syst
         if (chunk.type === 'error' && chunk.error) process.stdout.write(`\n${chunk.error}`);
       }
     } catch (err) { process.stdout.write(`\nError: ${String(err)}`); }
+
+    // Run after-chat hooks
+    if (pluginLoader && full && chatCtx) {
+      full = await pluginLoader.runAfterChat(full, chatCtx);
+    }
 
     process.removeListener('SIGINT', onInterrupt);
     if (interrupted) process.stdout.write(`\n${GR}[interrupted]${R}`);
@@ -335,6 +423,7 @@ async function main(): Promise<void> {
     console.log('  /git stats          Repo statistics');
     console.log('  /git diff           Uncommitted changes');
     console.log('  /clear              Clear context');
+    console.log('  /plugins            List loaded plugins');
     console.log('  /quit               Exit');
     process.exit(0);
   }
@@ -380,6 +469,10 @@ async function main(): Promise<void> {
   const memory = new Memory(repoDir);
   const awareness = new Awareness(repoDir);
 
+  // Load plugins from cocapn/plugins/*.js
+  const pluginLoader = new PluginLoader();
+  await pluginLoader.load(join(repoDir, 'cocapn', 'plugins'));
+
   if (args.positionals[0] === 'whoami') {
     console.log(cmdWhoami(awareness, memory));
     return;
@@ -389,7 +482,7 @@ async function main(): Promise<void> {
     const port = (parseInt(args.values.port, 10) || config.port) ?? 3100;
     startWebServer(port, llm, memory, awareness, soul);
   } else {
-    await terminalChat(llm, memory, awareness, systemPrompt, soul.name);
+    await terminalChat(llm, memory, awareness, systemPrompt, soul.name, pluginLoader);
   }
 }
 

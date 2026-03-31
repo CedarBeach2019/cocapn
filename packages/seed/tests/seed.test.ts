@@ -21,6 +21,7 @@ import * as extractMod from '../src/extract.ts';
 import * as contextMod from '../src/context.ts';
 import * as reflectMod from '../src/reflect.ts';
 import * as summarizeMod from '../src/summarize.ts';
+import * as pluginsMod from '../src/plugins.ts';
 
 const { loadSoul, soulToSystemPrompt, buildFullSystemPrompt } = soulMod;
 const { Memory } = memoryMod;
@@ -883,5 +884,253 @@ describe('buildFullSystemPrompt', () => {
     const soul = { name: 'Bot', tone: 'neutral', model: 'deepseek', body: 'Hello.' };
     const result = buildFullSystemPrompt(soul, 'I am alive.', 'facts');
     expect(result).not.toContain('Recent Reflection');
+  });
+});
+
+// ─── Config Validation Tests ────────────────────────────────────────────────────
+
+import * as configMod from '../src/config.ts';
+
+describe('Config Validation', () => {
+  it('accepts valid config with all fields', () => {
+    const errors = configMod.validateConfig({ mode: 'private', port: 3100, llm: { provider: 'deepseek', model: 'deepseek-chat', temperature: 0.7, maxTokens: 2048 } });
+    expect(errors).toEqual([]);
+  });
+
+  it('accepts empty config (all optional)', () => {
+    const errors = configMod.validateConfig({});
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects invalid mode', () => {
+    const errors = configMod.validateConfig({ mode: 'invalid' });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('mode');
+  });
+
+  it('rejects non-numeric port', () => {
+    const errors = configMod.validateConfig({ port: 'abc' });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('port');
+  });
+
+  it('rejects out-of-range port', () => {
+    const errors = configMod.validateConfig({ port: 99999 });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects invalid temperature', () => {
+    const errors = configMod.validateConfig({ llm: { temperature: 5 } });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('temperature');
+  });
+
+  it('rejects non-string apiKey', () => {
+    const errors = configMod.validateConfig({ llm: { apiKey: 123 } });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('apiKey');
+  });
+
+  it('rejects invalid maxTokens', () => {
+    const errors = configMod.validateConfig({ llm: { maxTokens: -1 } });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('maxTokens');
+  });
+
+  it('applies defaults', () => {
+    const result = configMod.applyDefaults({});
+    expect(result.mode).toBe('private');
+    expect(result.port).toBe(3100);
+    expect(result.llm?.provider).toBe('deepseek');
+  });
+
+  it('preserves explicit values over defaults', () => {
+    const result = configMod.applyDefaults({ mode: 'public', port: 8080 });
+    expect(result.mode).toBe('public');
+    expect(result.port).toBe(8080);
+  });
+});
+
+// ─── Plugin Tests ──────────────────────────────────────────────────────────────
+
+describe('PluginLoader', () => {
+  let testDir: string;
+  let pluginDir: string;
+  let logs: string[];
+  beforeEach(() => {
+    testDir = join(tmpdir(), `cocapn-plug-${uid()}`);
+    pluginDir = join(testDir, 'cocapn', 'plugins');
+    mkdirSync(pluginDir, { recursive: true });
+    logs = [];
+  });
+  afterEach(() => { try { rmSync(testDir, { recursive: true, force: true }); } catch {} });
+
+  it('loads plugins from cocapn/plugins/*.js', async () => {
+    writeFileSync(join(pluginDir, 'test.js'),
+      `export default { name: 'test', version: '1.0.0', hooks: {} };`
+    );
+    const loader = new pluginsMod.PluginLoader((m) => logs.push(m));
+    await loader.load(pluginDir);
+    expect(loader.plugins.length).toBe(1);
+    expect(loader.plugins[0].name).toBe('test');
+    expect(logs).toContain('loaded test@1.0.0');
+  });
+
+  it('loads multiple plugins in alphabetical order', async () => {
+    writeFileSync(join(pluginDir, 'alpha.js'),
+      `export default { name: 'alpha', version: '0.1.0', hooks: {} };`
+    );
+    writeFileSync(join(pluginDir, 'beta.js'),
+      `export default { name: 'beta', version: '2.0.0', hooks: {} };`
+    );
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    expect(loader.plugins.length).toBe(2);
+    expect(loader.plugins[0].name).toBe('alpha');
+    expect(loader.plugins[1].name).toBe('beta');
+  });
+
+  it('skips non-js files', async () => {
+    writeFileSync(join(pluginDir, 'readme.md'), 'not a plugin');
+    writeFileSync(join(pluginDir, 'real.js'),
+      `export default { name: 'real', version: '1.0.0', hooks: {} };`
+    );
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    expect(loader.plugins.length).toBe(1);
+    expect(loader.plugins[0].name).toBe('real');
+  });
+
+  it('handles invalid plugin gracefully', async () => {
+    writeFileSync(join(pluginDir, 'bad.js'), `export default { wrong: true };`);
+    const loader = new pluginsMod.PluginLoader((m) => logs.push(m));
+    await loader.load(pluginDir);
+    expect(loader.plugins.length).toBe(0);
+    expect(logs.some(l => l.includes('failed to load'))).toBe(true);
+  });
+
+  it('handles missing plugin directory', async () => {
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(join(testDir, 'nonexistent'));
+    expect(loader.plugins.length).toBe(0);
+  });
+
+  it('runs before-chat hooks in order', async () => {
+    writeFileSync(join(pluginDir, 'a.js'), `export default {
+      name: 'a', version: '1.0.0',
+      hooks: { 'before-chat': async (msg, ctx) => { ctx.order = (ctx.order || '') + 'a'; return ctx; } }
+    };`);
+    writeFileSync(join(pluginDir, 'b.js'), `export default {
+      name: 'b', version: '1.0.0',
+      hooks: { 'before-chat': async (msg, ctx) => { ctx.order = (ctx.order || '') + 'b'; return ctx; } }
+    };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    const ctx = await loader.runBeforeChat('hello', { message: 'hello', facts: {} });
+    expect((ctx as any).order).toBe('ab');
+  });
+
+  it('runs after-chat hooks in order', async () => {
+    writeFileSync(join(pluginDir, 'wrap.js'), `export default {
+      name: 'wrap', version: '1.0.0',
+      hooks: { 'after-chat': async (res, ctx) => '[' + res + ']' }
+    };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    const result = await loader.runAfterChat('hello', { message: 'hello', facts: {} });
+    expect(result).toBe('[hello]');
+  });
+
+  it('collects plugin commands', async () => {
+    writeFileSync(join(pluginDir, 'cmd.js'), `export default {
+      name: 'cmd', version: '1.0.0',
+      hooks: { command: { foo: async (a) => 'foo:' + a, bar: async (a) => 'bar:' + a } }
+    };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    const cmds = loader.getCommands();
+    expect(Object.keys(cmds)).toEqual(['foo', 'bar']);
+    expect(await cmds['foo']('test')).toBe('foo:test');
+    expect(await cmds['bar']('x')).toBe('bar:x');
+  });
+
+  it('isolates plugin command errors', async () => {
+    writeFileSync(join(pluginDir, 'err.js'), `export default {
+      name: 'err', version: '1.0.0',
+      hooks: { command: { boom: async (a) => { throw new Error('kaboom'); } } }
+    };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    const cmds = loader.getCommands();
+    const result = await cmds['boom']('');
+    expect(result).toContain('error');
+    expect(result).toContain('kaboom');
+  });
+
+  it('isolates before-chat hook errors', async () => {
+    writeFileSync(join(pluginDir, 'crash.js'), `export default {
+      name: 'crash', version: '1.0.0',
+      hooks: { 'before-chat': async (msg, ctx) => { throw new Error('oops'); } }
+    };`);
+    const loader = new pluginsMod.PluginLoader((m) => logs.push(m));
+    await loader.load(pluginDir);
+    const ctx = await loader.runBeforeChat('test', { message: 'test', facts: {} });
+    // Should still return context (original since hook failed)
+    expect(ctx.message).toBe('test');
+    expect(logs.some(l => l.includes('crash'))).toBe(true);
+  });
+
+  it('isolates after-chat hook errors', async () => {
+    writeFileSync(join(pluginDir, 'bad.js'), `export default {
+      name: 'bad', version: '1.0.0',
+      hooks: { 'after-chat': async (res, ctx) => { throw new Error('nope'); } }
+    };`);
+    const loader = new pluginsMod.PluginLoader((m) => logs.push(m));
+    await loader.load(pluginDir);
+    const result = await loader.runAfterChat('hello', { message: 'hello', facts: {} });
+    // Should return original response since hook failed
+    expect(result).toBe('hello');
+  });
+
+  it('lists loaded plugins', async () => {
+    writeFileSync(join(pluginDir, 'p1.js'), `export default {
+      name: 'p1', version: '1.0.0',
+      hooks: { command: { hello: async (a) => 'hi' } }
+    };`);
+    writeFileSync(join(pluginDir, 'p2.js'), `export default {
+      name: 'p2', version: '2.0.0',
+      hooks: {}
+    };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    const list = loader.list();
+    expect(list.length).toBe(2);
+    expect(list[0]).toEqual({ name: 'p1', version: '1.0.0', commands: ['hello'] });
+    expect(list[1]).toEqual({ name: 'p2', version: '2.0.0', commands: [] });
+  });
+
+  it('returns empty list when no plugins loaded', () => {
+    const loader = new pluginsMod.PluginLoader();
+    expect(loader.list()).toEqual([]);
+    expect(loader.getCommands()).toEqual({});
+  });
+
+  it('before-chat hook can add context data', async () => {
+    writeFileSync(join(pluginDir, 'hint.js'), `export default {
+      name: 'hint', version: '1.0.0',
+      hooks: { 'before-chat': async (msg, ctx) => { ctx._myHint = '42'; return ctx; } }
+    };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    const ctx = await loader.runBeforeChat('what is the answer?', { message: 'what is the answer?', facts: {} });
+    expect((ctx as any)._myHint).toBe('42');
+  });
+
+  it('plugin with no hooks still loads', async () => {
+    writeFileSync(join(pluginDir, 'empty.js'), `export default { name: 'empty', version: '0.0.1', hooks: {} };`);
+    const loader = new pluginsMod.PluginLoader();
+    await loader.load(pluginDir);
+    expect(loader.plugins.length).toBe(1);
+    expect(loader.list()[0].commands).toEqual([]);
   });
 });
