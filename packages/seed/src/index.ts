@@ -218,7 +218,7 @@ function cmdImport(memory: Memory, filePath: string): string {
 
 // ─── Terminal REPL ─────────────────────────────────────────────────────────────
 
-async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string): Promise<void> {
+async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string, soulName: string): Promise<void> {
   const self = awareness.narrate();
   const B = '\x1b[1m', C = '\x1b[36m', G = '\x1b[32m', GR = '\x1b[90m', R = '\x1b[0m';
 
@@ -236,7 +236,7 @@ async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, syst
       console.log(`${GR}Goodbye! I'll be here when you come back. Your memories are safe in cocapn/memory.json${R}`);
       rl.close(); return;
     }
-    if (input === '/help') { console.log(cmdHelp(soul.name)); rl.prompt(); continue; }
+    if (input === '/help') { console.log(cmdHelp(soulName)); rl.prompt(); continue; }
     if (input === '/clear') { console.log(`${GR}Context cleared.${R}`); rl.prompt(); continue; }
     if (input === '/whoami') { console.log(cmdWhoami(awareness, memory)); rl.prompt(); continue; }
     if (input === '/export') { console.log(cmdExport(memory)); rl.prompt(); continue; }
@@ -280,7 +280,7 @@ async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, syst
     ].join('\n');
 
     memory.addMessage('user', input);
-    process.stdout.write(`${C}${soul.name}: ${R}`);
+    process.stdout.write(`${C}${soulName}: ${R}`);
     let full = '';
     let interrupted = false;
 
@@ -389,7 +389,7 @@ async function main(): Promise<void> {
     const port = (parseInt(args.values.port, 10) || config.port) ?? 3100;
     startWebServer(port, llm, memory, awareness, soul);
   } else {
-    await terminalChat(llm, memory, awareness, systemPrompt);
+    await terminalChat(llm, memory, awareness, systemPrompt, soul.name);
   }
 }
 

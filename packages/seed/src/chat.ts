@@ -1,9 +1,9 @@
 import { createInterface } from 'node:readline';
-import type { DeepSeek, ChatMessage } from './llm.js';
+import type { LLM, ChatMessage } from './llm.js';
 import type { Memory } from './memory.js';
 
 export async function chat(
-  llm: DeepSeek, memory: Memory, systemPrompt: string, stream = true,
+  llm: LLM, memory: Memory, systemPrompt: string, stream = true,
 ): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '\x1b[32m> \x1b[0m' });
   rl.prompt();
