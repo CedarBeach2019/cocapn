@@ -70,7 +70,7 @@ function resolveSession(req: IncomingMessage, res: ServerResponse, memory: Memor
 let htmlCache: string | null = null;
 let themedHTML: string | null = null;
 
-function getHTML(themeCSS: string): string {
+function getHTML(themeCSS: string, soulName: string, soulAvatar: string): string {
   if (themedHTML) return themedHTML;
   if (!htmlCache) {
     const paths = [
@@ -82,7 +82,10 @@ function getHTML(themeCSS: string): string {
     }
     if (!htmlCache) htmlCache = `<!DOCTYPE html><html><body style="background:#0a0a0a;color:#e0e0e0;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh"><div><h1>cocapn</h1><p>Chat UI not found. Use POST /api/chat</p></div></body></html>`;
   }
-  themedHTML = htmlCache.replace('/*__THEME__*/', themeCSS);
+  themedHTML = htmlCache
+    .replace('/*__THEME__*/', themeCSS)
+    .replace(/__AGENT_NAME__/g, soulName || 'cocapn')
+    .replace(/__AGENT_AVATAR__/g, soulAvatar || '🤖');
   return themedHTML;
 }
 
@@ -131,7 +134,7 @@ export function startWebServer(
     // GET / — chat UI
     if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(getHTML(themeCSS));
+      res.end(getHTML(themeCSS, soul.name, avatar));
       return;
     }
 
