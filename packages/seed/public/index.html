@@ -1,244 +1,254 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-mode="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>cocapn</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#09090b;--surface:#111113;--border:#1e1e22;--text:#d4d4d8;--muted:#71717a;
-    --accent:#22c55e;--accent2:#16a34a;--user-bg:#1e3a5f;--bot-bg:#16161a;--mono:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace}
-  body{font-family:var(--mono);background:var(--bg);color:var(--text);height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
-  header{padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pulse 2s ease-in-out infinite}
-  .dot.offline{background:#ef4444;box-shadow:0 0 6px #ef4444;animation:none}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-  header h1{font-size:13px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text)}
-  header .meta{font-size:11px;color:var(--muted);margin-left:auto;display:flex;gap:12px;align-items:center}
-  .mem-count{background:var(--border);padding:2px 8px;border-radius:4px;font-size:10px;color:var(--muted)}
-  #greeting{padding:20px 24px 8px;font-size:12px;color:var(--muted);line-height:1.6;flex-shrink:0}
-  #empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:40px 20px}
-  #empty-state h2{font-size:16px;color:var(--text);margin-bottom:8px;font-weight:600}
-  #empty-state p{font-size:13px;color:var(--muted);max-width:400px;line-height:1.6}
-  #messages{flex:1;overflow-y:auto;padding:12px 20px 20px;scroll-behavior:smooth;display:none}
-  #messages.active{display:block}
-  #messages::-webkit-scrollbar{width:4px}
-  #messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-  .msg{margin-bottom:14px;max-width:680px;animation:fadeIn .2s ease}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  .msg.user{margin-left:auto;text-align:right}
-  .msg .role{font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
-  .msg .bubble{padding:10px 14px;border-radius:10px;white-space:pre-wrap;line-height:1.6;font-size:13px;word-break:break-word}
-  .msg .meta-info{font-size:10px;color:var(--muted);margin-top:4px}
-  .msg.user .bubble{background:var(--user-bg);border-bottom-right-radius:2px;display:inline-block;text-align:left}
-  .msg.assistant .bubble{background:var(--bot-bg);border:1px solid var(--border);border-bottom-left-radius:2px}
-  .typing{display:inline-flex;gap:4px;padding:10px 14px}
-  .typing span{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:bounce .6s ease-in-out infinite}
-  .typing span:nth-child(2){animation-delay:.1s}
-  .typing span:nth-child(3){animation-delay:.2s}
-  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-  #input-area{padding:14px 20px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
-  #input{flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .15s;resize:none;min-height:40px;max-height:120px}
-  #char-count{position:absolute;bottom:2px;right:8px;font-size:9px;color:var(--border);pointer-events:none}
-  #input:focus{border-color:var(--accent)}
-  #input::placeholder{color:var(--muted)}
-  .btn{padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#000;font-family:var(--mono);font-weight:600;font-size:12px;cursor:pointer;transition:background .15s;letter-spacing:.3px}
-  .btn:hover{background:var(--accent2)}
-  .btn:disabled{opacity:.4;cursor:not-allowed}
-  .btn.secondary{background:var(--border);color:var(--text)}
-  .btn.secondary:hover{background:#2a2a2e}
-  .sidebar{position:fixed;top:0;right:-340px;width:320px;height:100vh;background:var(--surface);border-left:1px solid var(--border);padding:20px;overflow-y:auto;transition:right .2s ease;z-index:10}
-  .sidebar.open{right:0}
-  .sidebar h2{font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-  .sidebar pre{font-size:12px;color:var(--muted);white-space:pre-wrap;line-height:1.6}
-  .sidebar .close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px}
-  @media(max-width:600px){
-    #messages{padding:12px}
-    #input-area{padding:10px 12px}
-    .msg{max-width:100%}
-    .sidebar{width:280px;right:-300px}
-  }
+/*__THEME__*/
+[data-mode="dark"]{--bg:#09090b;--surface:#111113;--border:#1e1e22;--text:#d4d4d8;--muted:#71717a;--user-bg:#1e3a5f;--bot-bg:#16161a}
+[data-mode="light"]{--bg:#fff;--surface:#f5f5f5;--border:#e0e0e0;--text:#1a1a1a;--muted:#888;--user-bg:#dbeafe;--bot-bg:#f0f0f0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100dvh;display:flex;flex-direction:column;overflow:hidden;transition:background .3s,color .3s}
+header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.avatar{width:34px;height:34px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
+.dot.off{background:#ef4444;box-shadow:0 0 6px #ef4444;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.hdr-info{flex:1;min-width:0}
+.hdr-info h1{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-meta{font-size:11px;color:var(--muted)}
+.hdr-actions{display:flex;gap:6px;align-items:center}
+.mem-count{background:var(--border);padding:2px 8px;border-radius:4px;font-size:10px;color:var(--muted)}
+.ibtn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
+.ibtn:hover{background:var(--border);color:var(--text)}
+#empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:40px 20px;animation:fadeIn .3s ease}
+.avatar-big{width:60px;height:60px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:16px}
+#empty-state h2{font-size:16px;margin-bottom:6px}
+#empty-state p{font-size:13px;color:var(--muted);max-width:360px;line-height:1.5}
+#messages{flex:1;overflow-y:auto;padding:16px 20px;scroll-behavior:smooth;display:none}
+#messages.active{display:block}
+#messages::-webkit-scrollbar{width:4px}
+#messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.msg{margin-bottom:12px;max-width:680px;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.msg.user{margin-left:auto;text-align:right;max-width:75%}
+.msg .role{font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:4px}
+.msg .bubble{padding:10px 14px;border-radius:12px;line-height:1.6;font-size:13px;word-break:break-word;text-align:left}
+.msg .ts{font-size:10px;color:var(--muted);margin-top:4px}
+.msg.user .bubble{background:var(--user-bg);border-bottom-right-radius:4px;color:#fff}
+.msg.assistant .bubble{background:var(--bot-bg);border:1px solid var(--border);border-bottom-left-radius:4px}
+.bubble a{color:var(--accent);text-decoration:underline}
+.bubble code{background:var(--border);padding:1px 5px;border-radius:3px;font-size:12px}
+.bubble strong{font-weight:700}
+.bubble em{font-style:italic}
+.bubble ul{padding-left:20px;margin:4px 0}
+.bubble li{margin:2px 0}
+.code-block{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin:8px 0;overflow:hidden}
+.code-block code{display:block;padding:12px;background:none;font-size:12px;line-height:1.5;overflow-x:auto}
+.copy-btn{position:absolute;top:6px;right:6px;background:var(--border);border:none;color:var(--muted);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;transition:all .15s;font-family:var(--font)}
+.copy-btn:hover{background:var(--muted);color:var(--text)}
+.typing{display:inline-flex;gap:4px;padding:10px 14px}
+.typing span{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:bounce .6s ease-in-out infinite}
+.typing span:nth-child(2){animation-delay:.1s}
+.typing span:nth-child(3){animation-delay:.2s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+#input-area{padding:12px 16px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
+.input-wrap{flex:1;position:relative}
+#input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;outline:none;transition:border-color .15s;resize:none;min-height:40px;max-height:120px}
+#input:focus{border-color:var(--accent)}
+#input::placeholder{color:var(--muted)}
+#char-count{position:absolute;bottom:4px;right:10px;font-size:9px;color:var(--border);pointer-events:none}
+.send-btn{width:40px;height:40px;border-radius:10px;border:none;background:var(--accent);color:#000;font-size:18px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.send-btn:hover{background:var(--accent2)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed}
+.sidebar{position:fixed;top:0;right:-360px;width:340px;height:100dvh;background:var(--surface);border-left:1px solid var(--border);padding:20px;overflow-y:auto;transition:right .25s ease;z-index:10}
+.sidebar.open{right:0}
+.sidebar h3{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px}
+.sidebar h3:first-of-type{margin-top:0}
+.sidebar pre{font-size:12px;color:var(--muted);white-space:pre-wrap;line-height:1.6}
+.sidebar .close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px}
+.sidebar .cmd-list{font-size:11px;color:var(--muted);line-height:2}
+.sidebar .cmd-list span{display:block}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.on{opacity:1;pointer-events:auto}
+footer{padding:6px 16px;font-size:10px;color:var(--muted);text-align:center;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+@media(max-width:600px){
+  #messages{padding:12px}
+  #input-area{padding:8px 12px}
+  .msg{max-width:90%}
+  .sidebar{width:100%;right:-100%}
+  footer{display:none}
+}
 </style>
 </head>
 <body>
 <header>
   <div class="dot" id="status-dot"></div>
-  <h1 id="agent-name">cocapn</h1>
-  <span class="meta">
-    <span id="agent-meta"></span>
+  <div class="avatar" id="hdr-avatar">🤖</div>
+  <div class="hdr-info">
+    <h1 id="agent-name">cocapn</h1>
+    <span class="hdr-meta" id="agent-meta"></span>
+  </div>
+  <div class="hdr-actions">
     <span class="mem-count" id="mem-count"></span>
-    <button class="btn secondary" style="padding:4px 10px;font-size:10px" onclick="toggleSidebar()">/whoami</button>
-  </span>
+    <button class="ibtn" onclick="toggleMode()" title="Toggle light/dark">🌓</button>
+    <button class="ibtn" onclick="toggleSidebar()" title="Info">☰</button>
+  </div>
 </header>
-<div id="greeting"></div>
 <div id="empty-state">
+  <div class="avatar-big" id="empty-avatar">🤖</div>
   <h2>Start a conversation</h2>
-  <p id="empty-agent-name">Type a message below to begin chatting with your agent.</p>
+  <p id="empty-hint">Type a message below to begin.</p>
 </div>
 <div id="messages"></div>
-<div class="sidebar" id="sidebar">
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+<aside class="sidebar" id="sidebar">
   <button class="close" onclick="toggleSidebar()">&times;</button>
-  <h2>Self-Perception</h2>
+  <h3>Self-Perception</h3>
   <pre id="whoami-content">Loading...</pre>
-</div>
+  <h3>Commands</h3>
+  <div class="cmd-list">
+    <span>/whoami — full self-perception</span>
+    <span>/memory list — show memories</span>
+    <span>/memory clear — clear memories</span>
+    <span>/memory search &lt;q&gt; — search</span>
+    <span>/git log — recent commits</span>
+    <span>/git stats — repo statistics</span>
+    <span>/git diff — uncommitted changes</span>
+    <span>/export — export memories</span>
+    <span>/clear — clear context</span>
+    <span>/quit — exit session</span>
+  </div>
+</aside>
 <div id="input-area">
-  <div style="position:relative;flex:1">
-    <input id="input" placeholder="Say something..." autofocus autocomplete="off" />
+  <div class="input-wrap">
+    <textarea id="input" placeholder="Say something..." rows="1" autofocus></textarea>
     <span id="char-count"></span>
   </div>
-  <button class="btn" id="send">Send</button>
+  <button class="send-btn" id="send" title="Send">↑</button>
 </div>
-<footer style="text-align:center;padding:6px 20px;font-size:10px;color:var(--muted);background:var(--surface);border-top:1px solid var(--border);flex-shrink:0">
-  Powered by <strong>cocapn</strong> · the repo IS the agent
-</footer>
+<footer>Powered by <strong>cocapn</strong> · the repo IS the agent</footer>
 <script>
 const $=s=>document.querySelector(s);
-const msgs=$('#messages'),input=$('#input'),sendBtn=$('#send'),emptyState=$('#empty-state'),charCount=$('#char-count');
-let busy=false,connected=true,messageCount=0;
+const msgs=$('#messages'),input=$('#input'),sendBtn=$('#send'),empty=$('#empty-state'),cc=$('#char-count');
+let busy=false,avatar='🤖',msgN=0;
 
-// Character count
 input.oninput=()=>{
-  const len=input.value.length;
-  charCount.textContent=len>0?len+' chars':'';
+  cc.textContent=input.value.length?input.value.length+' chars':'';
   input.style.height='auto';
   input.style.height=Math.min(input.scrollHeight,120)+'px';
 };
 
-// Load agent info on boot
 (async()=>{
   try{
-    const r=await fetch('/api/status');
-    if(!r.ok) throw new Error('status '+r.status);
+    const r=await fetch('/api/status');if(!r.ok)throw 0;
     const s=await r.json();
     document.title=s.name||'cocapn';
     $('#agent-name').textContent=s.name||'cocapn';
     $('#agent-meta').textContent=`${s.commits} commits · ${s.files} files · ${s.branch}`;
-    $('#greeting').textContent=`I am ${s.name}. Born ${s.age||'recently'}. ${s.feeling||''}`;
-    const mc=s.memoryCount||0, fc=s.factCount||0;
-    $('#mem-count').textContent=mc+' msgs · '+fc+' facts';
-    $('#empty-agent-name').textContent=`Start a conversation with ${s.name}`;
-    connected=true;
-  }catch(e){
-    $('#status-dot').classList.add('offline');
-    $('#greeting').textContent='Ready. Type a message to begin.';
-    connected=false;
+    avatar=s.avatar||'🤖';
+    $('#hdr-avatar').textContent=avatar;
+    $('#empty-avatar').textContent=avatar;
+    $('#empty-hint').textContent=`Start a conversation with ${s.name}`;
+    $('#mem-count').textContent=(s.memoryCount||0)+' msgs · '+(s.factCount||0)+' facts';
+    if(s.theme?.mode)document.documentElement.dataset.mode=s.theme.mode;
+    const saved=localStorage.getItem('cocapn-mode');
+    if(saved)document.documentElement.dataset.mode=saved;
+  }catch{
+    $('#status-dot').classList.add('off');
+    $('#empty-hint').textContent='Ready. Type a message to begin.';
   }
 })();
 
-// Load whoami
+function toggleMode(){
+  const h=document.documentElement;
+  h.dataset.mode=h.dataset.mode==='dark'?'light':'dark';
+  localStorage.setItem('cocapn-mode',h.dataset.mode);
+}
+function toggleSidebar(){
+  const sb=$('#sidebar'),ov=$('#overlay'),open=sb.classList.toggle('open');
+  ov.classList.toggle('on',open);
+  if(open)loadWhoami();
+}
 async function loadWhoami(){
   try{
-    const r=await fetch('/api/whoami');
-    const d=await r.json();
-    const lines=['Name:       '+d.name];
-    if(d.born) lines.push('Born:       '+d.born+' ('+d.age+')');
-    if(d.description) lines.push('Purpose:    '+d.description);
-    lines.push('Body:       '+d.files+' files');
-    if(d.languages&&d.languages.length) lines.push('Languages:  '+d.languages.join(', '));
-    lines.push('Commits:    '+d.commits);
-    lines.push('Branch:     '+d.branch);
-    if(d.authors&&d.authors.length) lines.push('Creators:   '+d.authors.join(', '));
-    lines.push('Memory:     '+(d.memory?.facts||0)+' facts, '+(d.memory?.messages||0)+' msgs');
-    if(d.feeling) lines.push('Feeling:    '+d.feeling);
-    $('#whoami-content').textContent=lines.join('\n');
-  }catch(e){
-    $('#whoami-content').textContent='Error loading self-perception.';
-  }
+    const r=await fetch('/api/whoami'),d=await r.json(),l=['Name:       '+d.name];
+    if(d.born)l.push('Born:       '+d.born+' ('+d.age+')');
+    if(d.description)l.push('Purpose:    '+d.description);
+    l.push('Body:       '+d.files+' files');
+    if(d.languages?.length)l.push('Languages:  '+d.languages.join(', '));
+    l.push('Commits:    '+d.commits,'Branch:     '+d.branch);
+    if(d.authors?.length)l.push('Creators:   '+d.authors.join(', '));
+    l.push('Memory:     '+(d.memory?.facts||0)+' facts, '+(d.memory?.messages||0)+' msgs');
+    if(d.feeling)l.push('Feeling:    '+d.feeling);
+    $('#whoami-content').textContent=l.join('\n');
+  }catch{$('#whoami-content').textContent='Error loading.';}
 }
-loadWhoami();
-
-function toggleSidebar(){
-  const sb=$('#sidebar');
-  sb.classList.toggle('open');
-  if(sb.classList.contains('open')) loadWhoami();
-}
-
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
-
-function addMsg(role,text,responseTime){
-  // Hide empty state on first message
-  if(messageCount===0){emptyState.style.display='none';msgs.classList.add('active');}
-  messageCount++;
-  const div=document.createElement('div');
-  div.className='msg '+role;
-  const meta=responseTime?`<div class="meta-info">${responseTime}</div>`:'';
-  div.innerHTML=`<div class="role">${role}</div><div class="bubble">${esc(text)}</div>${meta}`;
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
+function md(text){
+  let h=esc(text);
+  h=h.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>`<pre class="code-block"><code>${code.trim()}</code><button class="copy-btn" onclick="copyCode(this)">Copy</button></pre>`);
+  h=h.replace(/`([^`]+)`/g,'<code>$1</code>');
+  h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  h=h.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>');
+  h=h.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  h=h.replace(/^[-*] (.+)$/gm,'<li>$1</li>');
+  h=h.replace(/((?:<li>.*<\/li>\n?)+)/g,'<ul>$1</ul>');
+  return h;
+}
+function copyCode(btn){
+  navigator.clipboard.writeText(btn.previousElementSibling.textContent)
+    .then(()=>{btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',1500);});
+}
+function ts(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+function addMsg(role,text,rt){
+  if(msgN===0){empty.style.display='none';msgs.classList.add('active');}
+  msgN++;
+  const div=document.createElement('div');div.className='msg '+role;
+  const av=role==='assistant'?`<span>${avatar}</span> `:'';
+  const tm=`<div class="ts">${ts()}${rt?' · '+rt:''}</div>`;
+  div.innerHTML=`<div class="role">${av}${role}</div><div class="bubble">${md(text)}</div>${tm}`;
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
   return div;
 }
-
 function showTyping(){
-  const div=document.createElement('div');
-  div.className='msg assistant';div.id='typing';
-  div.innerHTML='<div class="role">assistant</div><div class="typing"><span></span><span></span><span></span></div>';
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  const d=document.createElement('div');d.className='msg assistant';d.id='typing';
+  d.innerHTML=`<div class="role"><span>${avatar}</span> assistant</div><div class="typing"><span></span><span></span><span></span></div>`;
+  msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
 }
-
-function removeTyping(){const t=$('#typing');if(t)t.remove()}
-
-function updateMemCount(){
+function hideTyping(){const t=$('#typing');if(t)t.remove()}
+function updMem(){
   fetch('/api/status').then(r=>r.json()).then(s=>{
-    const mc=s.memoryCount||0,fc=s.factCount||0;
-    $('#mem-count').textContent=mc+' msgs · '+fc+' facts';
+    $('#mem-count').textContent=(s.memoryCount||0)+' msgs · '+(s.factCount||0)+' facts';
   }).catch(()=>{});
 }
-
 async function send(){
-  const text=input.value.trim();
-  if(!text||busy)return;
-  input.value='';charCount.textContent='';input.style.height='auto';busy=true;sendBtn.disabled=true;
-  const startTime=Date.now();
-  addMsg('user',text);
-  showTyping();
-
+  const text=input.value.trim();if(!text||busy)return;
+  input.value='';cc.textContent='';input.style.height='auto';busy=true;sendBtn.disabled=true;
+  const t0=Date.now();addMsg('user',text);showTyping();
   try{
-    const res=await fetch('/api/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:text}),
-    });
-    removeTyping();
-    const reader=res.body.getReader();
-    const dec=new TextDecoder();
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
+    hideTyping();
+    const reader=res.body.getReader(),dec=new TextDecoder();
     let full='',msgDiv=null;
-
     while(true){
-      const{done,value}=await reader.read();
-      if(done)break;
-      const chunk=dec.decode(value,{stream:true});
-      for(const line of chunk.split('\n')){
+      const{done,value}=await reader.read();if(done)break;
+      for(const line of dec.decode(value,{stream:true}).split('\n')){
         if(!line.startsWith('data: '))continue;
-        const p=line.slice(6).trim();
-        if(p==='[DONE]')break;
+        const p=line.slice(6).trim();if(p==='[DONE]')break;
         try{
           const d=JSON.parse(p);
-          if(d.content){
-            full+=d.content;
-            if(!msgDiv){
-              const elapsed=((Date.now()-startTime)/1000).toFixed(1);
-              msgDiv=addMsg('assistant','',elapsed+'s');
-            }
-            msgDiv.querySelector('.bubble').textContent=full;
-            msgs.scrollTop=msgs.scrollHeight;
-          }
+          if(d.content){full+=d.content;if(!msgDiv)msgDiv=addMsg('assistant','',((Date.now()-t0)/1000).toFixed(1)+'s');msgDiv.querySelector('.bubble').innerHTML=md(full);msgs.scrollTop=msgs.scrollHeight;}
           if(d.error){addMsg('assistant','Error: '+d.error);break;}
         }catch{}
       }
     }
     if(!full&&!msgDiv)addMsg('assistant','(no response)');
-    connected=true;
-    $('#status-dot').classList.remove('offline');
-  }catch(e){
-    removeTyping();
-    addMsg('assistant','Error: '+e.message);
-    connected=false;
-    $('#status-dot').classList.add('offline');
-  }
-  updateMemCount();
-  busy=false;sendBtn.disabled=false;input.focus();
+    $('#status-dot').classList.remove('off');
+  }catch(e){hideTyping();addMsg('assistant','Error: '+e.message);$('#status-dot').classList.add('off');}
+  updMem();busy=false;sendBtn.disabled=false;input.focus();
 }
-
 sendBtn.onclick=send;
 input.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
 </script>
