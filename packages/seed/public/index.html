@@ -17,7 +17,11 @@
   header .meta{font-size:11px;color:var(--muted);margin-left:auto;display:flex;gap:12px;align-items:center}
   .mem-count{background:var(--border);padding:2px 8px;border-radius:4px;font-size:10px;color:var(--muted)}
   #greeting{padding:20px 24px 8px;font-size:12px;color:var(--muted);line-height:1.6;flex-shrink:0}
-  #messages{flex:1;overflow-y:auto;padding:12px 20px 20px;scroll-behavior:smooth}
+  #empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:40px 20px}
+  #empty-state h2{font-size:16px;color:var(--text);margin-bottom:8px;font-weight:600}
+  #empty-state p{font-size:13px;color:var(--muted);max-width:400px;line-height:1.6}
+  #messages{flex:1;overflow-y:auto;padding:12px 20px 20px;scroll-behavior:smooth;display:none}
+  #messages.active{display:block}
   #messages::-webkit-scrollbar{width:4px}
   #messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
   .msg{margin-bottom:14px;max-width:680px;animation:fadeIn .2s ease}
@@ -25,6 +29,7 @@
   .msg.user{margin-left:auto;text-align:right}
   .msg .role{font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
   .msg .bubble{padding:10px 14px;border-radius:10px;white-space:pre-wrap;line-height:1.6;font-size:13px;word-break:break-word}
+  .msg .meta-info{font-size:10px;color:var(--muted);margin-top:4px}
   .msg.user .bubble{background:var(--user-bg);border-bottom-right-radius:2px;display:inline-block;text-align:left}
   .msg.assistant .bubble{background:var(--bot-bg);border:1px solid var(--border);border-bottom-left-radius:2px}
   .typing{display:inline-flex;gap:4px;padding:10px 14px}
@@ -32,8 +37,9 @@
   .typing span:nth-child(2){animation-delay:.1s}
   .typing span:nth-child(3){animation-delay:.2s}
   @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-  #input-area{padding:14px 20px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
-  #input{flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .15s}
+  #input-area{padding:14px 20px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
+  #input{flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .15s;resize:none;min-height:40px;max-height:120px}
+  #char-count{position:absolute;bottom:2px;right:8px;font-size:9px;color:var(--border);pointer-events:none}
   #input:focus{border-color:var(--accent)}
   #input::placeholder{color:var(--muted)}
   .btn{padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#000;font-family:var(--mono);font-weight:600;font-size:12px;cursor:pointer;transition:background .15s;letter-spacing:.3px}
@@ -65,6 +71,10 @@
   </span>
 </header>
 <div id="greeting"></div>
+<div id="empty-state">
+  <h2>Start a conversation</h2>
+  <p id="empty-agent-name">Type a message below to begin chatting with your agent.</p>
+</div>
 <div id="messages"></div>
 <div class="sidebar" id="sidebar">
   <button class="close" onclick="toggleSidebar()">&times;</button>
@@ -72,13 +82,27 @@
   <pre id="whoami-content">Loading...</pre>
 </div>
 <div id="input-area">
-  <input id="input" placeholder="Say something..." autofocus autocomplete="off" />
+  <div style="position:relative;flex:1">
+    <input id="input" placeholder="Say something..." autofocus autocomplete="off" />
+    <span id="char-count"></span>
+  </div>
   <button class="btn" id="send">Send</button>
 </div>
+<footer style="text-align:center;padding:6px 20px;font-size:10px;color:var(--muted);background:var(--surface);border-top:1px solid var(--border);flex-shrink:0">
+  Powered by <strong>cocapn</strong> · the repo IS the agent
+</footer>
 <script>
 const $=s=>document.querySelector(s);
-const msgs=$('#messages'),input=$('#input'),sendBtn=$('#send');
-let busy=false,connected=true;
+const msgs=$('#messages'),input=$('#input'),sendBtn=$('#send'),emptyState=$('#empty-state'),charCount=$('#char-count');
+let busy=false,connected=true,messageCount=0;
+
+// Character count
+input.oninput=()=>{
+  const len=input.value.length;
+  charCount.textContent=len>0?len+' chars':'';
+  input.style.height='auto';
+  input.style.height=Math.min(input.scrollHeight,120)+'px';
+};
 
 // Load agent info on boot
 (async()=>{
@@ -92,6 +116,7 @@ let busy=false,connected=true;
     $('#greeting').textContent=`I am ${s.name}. Born ${s.age||'recently'}. ${s.feeling||''}`;
     const mc=s.memoryCount||0, fc=s.factCount||0;
     $('#mem-count').textContent=mc+' msgs · '+fc+' facts';
+    $('#empty-agent-name').textContent=`Start a conversation with ${s.name}`;
     connected=true;
   }catch(e){
     $('#status-dot').classList.add('offline');
@@ -130,10 +155,14 @@ function toggleSidebar(){
 
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
 
-function addMsg(role,text){
+function addMsg(role,text,responseTime){
+  // Hide empty state on first message
+  if(messageCount===0){emptyState.style.display='none';msgs.classList.add('active');}
+  messageCount++;
   const div=document.createElement('div');
   div.className='msg '+role;
-  div.innerHTML=`<div class="role">${role}</div><div class="bubble">${esc(text)}</div>`;
+  const meta=responseTime?`<div class="meta-info">${responseTime}</div>`:'';
+  div.innerHTML=`<div class="role">${role}</div><div class="bubble">${esc(text)}</div>${meta}`;
   msgs.appendChild(div);
   msgs.scrollTop=msgs.scrollHeight;
   return div;
@@ -158,7 +187,8 @@ function updateMemCount(){
 async function send(){
   const text=input.value.trim();
   if(!text||busy)return;
-  input.value='';busy=true;sendBtn.disabled=true;
+  input.value='';charCount.textContent='';input.style.height='auto';busy=true;sendBtn.disabled=true;
+  const startTime=Date.now();
   addMsg('user',text);
   showTyping();
 
@@ -185,7 +215,10 @@ async function send(){
           const d=JSON.parse(p);
           if(d.content){
             full+=d.content;
-            if(!msgDiv)msgDiv=addMsg('assistant','');
+            if(!msgDiv){
+              const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+              msgDiv=addMsg('assistant','',elapsed+'s');
+            }
             msgDiv.querySelector('.bubble').textContent=full;
             msgs.scrollTop=msgs.scrollHeight;
           }
