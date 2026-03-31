@@ -111,7 +111,7 @@ function cmdMemoryList(memory: Memory): string {
 }
 
 function cmdMemorySearch(memory: Memory, query: string): string {
-  const GR = '\x1b[90m', G = '\x1b[32m', R = '\x1b[0m';
+  const GR = '\x1b[90m', G = '\x1b[32m', Y = '\x1b[33m', R = '\x1b[0m';
   const results = memory.search(query);
   const lines: string[] = [];
   if (results.facts.length > 0) {
@@ -124,6 +124,10 @@ function cmdMemorySearch(memory: Memory, query: string): string {
       const preview = m.content.length > 80 ? m.content.slice(0, 80) + '...' : m.content;
       lines.push(`  ${GR}[${m.role}]${R} ${preview}`);
     }
+  }
+  if (results.gitLog.length > 0) {
+    lines.push(`${Y}Git history matching "${query}":${R}`);
+    for (const entry of results.gitLog) lines.push(`  ${GR}${entry}${R}`);
   }
   if (lines.length === 0) lines.push(`${GR}No matches for "${query}"${R}`);
   return lines.join('\n');

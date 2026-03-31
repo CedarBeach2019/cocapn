@@ -1,12 +1,15 @@
 /**
- * Memory — persistent JSON file memory for cocapn.
+ * Memory — two-tier persistent memory for cocapn.
  *
- * Stores conversation history and learned facts in .cocapn/memory.json.
- * Zero dependencies. Uses only Node.js fs module.
+ * Hot tier: JSON file for recent facts and messages (<100)
+ * Cold tier: git log for long-term recall
+ *
+ * Zero dependencies. Uses only Node.js built-ins.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,8 +34,10 @@ const MAX_MESSAGES = 100;
 export class Memory {
   private path: string;
   private data: MemoryStore;
+  private repoDir: string;
 
   constructor(repoDir: string) {
+    this.repoDir = repoDir;
     const dir = join(repoDir, '.cocapn');
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     this.path = join(dir, 'memory.json');
@@ -85,15 +90,28 @@ export class Memory {
     this.save();
   }
 
-  /** Search messages and facts for a query */
-  search(query: string): { messages: Message[]; facts: Array<{ key: string; value: string }> } {
+  /** Search hot (JSON) + cold (git) memory for a query */
+  search(query: string): { messages: Message[]; facts: Array<{ key: string; value: string }>; gitLog: string[] } {
     const q = query.toLowerCase();
     return {
       messages: this.data.messages.filter(m => m.content.toLowerCase().includes(q)),
       facts: Object.entries(this.data.facts)
-        .filter(([, v]) => v.toLowerCase().includes(q) || v.toLowerCase().includes(q))
+        .filter(([, v]) => v.toLowerCase().includes(q))
         .map(([key, value]) => ({ key, value })),
+      gitLog: this.searchGit(query),
     };
+  }
+
+  /** Cold tier: search git log for keywords */
+  searchGit(query: string): string[] {
+    try {
+      const raw = execSync(`git log --grep=${JSON.stringify(query)} --oneline -20`, {
+        cwd: this.repoDir, encoding: 'utf-8', timeout: 5000,
+      }).trim();
+      return raw ? raw.split('\n').filter(Boolean) : [];
+    } catch {
+      return [];
+    }
   }
 
   // ── Persistence ──────────────────────────────────────────────────────────────

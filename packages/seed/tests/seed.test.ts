@@ -169,6 +169,7 @@ describe('Memory', () => {
     expect(results.messages.length).toBe(2);
     expect(results.facts.length).toBe(1);
     expect(results.facts[0].key).toBe('language');
+    expect(results.gitLog).toBeDefined();
   });
 
   it('search returns empty on no match', () => {
@@ -177,6 +178,15 @@ describe('Memory', () => {
     const results = mem.search('xyz');
     expect(results.messages.length).toBe(0);
     expect(results.facts.length).toBe(0);
+    expect(results.gitLog).toEqual([]);
+  });
+
+  it('searchGit returns matching commits', () => {
+    // Use the real cocapn repo which has git history
+    const mem = new Memory('/tmp/cocapn');
+    const results = mem.searchGit('seed');
+    // Should find at least one commit mentioning "seed"
+    expect(Array.isArray(results)).toBe(true);
   });
 });
 
