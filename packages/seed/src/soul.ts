@@ -35,3 +35,34 @@ export function loadSoul(soulPath: string): Soul {
 export function soulToSystemPrompt(soul: Soul): string {
   return `You are ${soul.name}. Your tone is ${soul.tone}.\n\n${soul.body}`;
 }
+
+/**
+ * Build a full system prompt combining soul, awareness, facts, and reflection.
+ * This is the enhanced prompt that makes the agent actually smart.
+ */
+export function buildFullSystemPrompt(
+  soul: Soul,
+  awarenessNarration: string,
+  formattedFacts: string,
+  reflectionSummary?: string,
+): string {
+  const sections: string[] = [];
+
+  // Core personality
+  sections.push(`You are ${soul.name}. Your tone is ${soul.tone}.\n\n${soul.body}`);
+
+  // Git awareness — who I am in the repo
+  sections.push(`## Who I Am\n${awarenessNarration}`);
+
+  // Learned facts — what I remember about the user and world
+  if (formattedFacts) {
+    sections.push(`## What I Remember\n${formattedFacts}`);
+  }
+
+  // Self-reflection — recent insights
+  if (reflectionSummary) {
+    sections.push(`## Recent Reflection\n${reflectionSummary}`);
+  }
+
+  return sections.join('\n\n');
+}
