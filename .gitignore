@@ -22,3 +22,10 @@ secrets/*.yml
 *.swp
 *.swo
 *~
+
+# External repos (cloned separately)
+fishinglog-ai/
+kimi-cli/
+businesslog/
+makerlog-ai/
+personallog/
