@@ -114,60 +114,138 @@ if [ -f "cocapn/cocapn.json" ]; then
 else
   cat > cocapn/cocapn.json << CONF
 {
-  "name": "${REPO_NAME}",
-  "version": "0.1.0",
-  "model": "deepseek",
-  "memory": "cocapn/memory.json",
-  "soul": "soul.md",
-  "mode": "private"
+  "mode": "private",
+  "port": 3100,
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "baseUrl": "",
+    "apiKey": ""
+  }
 }
 CONF
   echo -e "${GREEN}✓${RESET} Wrote cocapn/cocapn.json"
 fi
 
-# ─── 6. Prompt for DeepSeek API key ────────────────────────────────────────
+# ─── 6. Prompt for LLM provider + API key ─────────────────────────────────
 
-if [ -n "$DEEPSEEK_API_KEY" ]; then
-  echo -e "${GREEN}✓${RESET} DEEPSEEK_API_KEY found in environment"
-else
+# Check if key already in env or secrets
+HAS_KEY=false
+if [ -n "$DEEPSEEK_API_KEY" ] || [ -n "$OPENAI_API_KEY" ]; then
+  HAS_KEY=true
+  echo -e "${GREEN}✓${RESET} API key found in environment"
+elif [ -f ~/.cocapn/secrets.json ]; then
+  if grep -q 'API_KEY' ~/.cocapn/secrets.json 2>/dev/null; then
+    HAS_KEY=true
+    echo -e "${GREEN}✓${RESET} API key found in ~/.cocapn/secrets.json"
+  fi
+fi
+
+if [ "$HAS_KEY" = "false" ]; then
   echo ''
-  echo -e "${BOLD}Need a DeepSeek API key.${RESET} Get one free: https://platform.deepseek.com/api_keys"
-  echo -en "${CYAN}Paste your key (or press Enter to skip):${RESET} "
-  read -r API_KEY
-  if [ -n "$API_KEY" ]; then
-    # Store in ~/.cocapn/secrets.json
-    mkdir -p ~/.cocapn
-    if [ -f ~/.cocapn/secrets.json ]; then
-      # Merge existing
-      EXISTING=$(cat ~/.cocapn/secrets.json)
-      echo "$EXISTING" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-d['DEEPSEEK_API_KEY'] = '$API_KEY'
-json.dump(d, sys.stdout, indent=2)
-" > ~/.cocapn/secrets.json.tmp 2>/dev/null && mv ~/.cocapn/secrets.json.tmp ~/.cocapn/secrets.json \
-      || echo "{\"DEEPSEEK_API_KEY\":\"$API_KEY\"}" > ~/.cocapn/secrets.json
+  echo -e "${BOLD}Choose your LLM provider:${RESET}"
+  echo -e "  ${CYAN}1)${RESET} DeepSeek   (default, cheap, good)"
+  echo -e "  ${CYAN}2)${RESET} OpenAI     (GPT-4o-mini, GPT-4o)"
+  echo -e "  ${CYAN}3)${RESET} Ollama     (local, free, private)"
+  echo -e "  ${CYAN}4)${RESET} Custom     (Groq, Together, etc.)"
+  echo ''
+  echo -en "${CYAN}Provider [1-4]:${RESET} "
+  read -r PROVIDER_CHOICE
+
+  case "$PROVIDER_CHOICE" in
+    2)
+      PROVIDER="openai"
+      MODEL="gpt-4o-mini"
+      ENV_VAR="OPENAI_API_KEY"
+      echo -e "${GRAY}Get a key: https://platform.openai.com/api-keys${RESET}"
+      ;;
+    3)
+      PROVIDER="ollama"
+      MODEL=""
+      # Check if Ollama is running
+      if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+        OLLAMA_MODEL=$(curl -s http://localhost:11434/api/tags | node -e "
+          const d=[];process.stdin.on('data',c=>d.push(c));process.stdin.on('end',()=>{
+            try{const j=JSON.parse(d.join(''));console.log(j.models?.[0]?.name||'')}catch{console.log('')}
+          })" 2>/dev/null || echo "")
+        if [ -n "$OLLAMA_MODEL" ]; then
+          MODEL="$OLLAMA_MODEL"
+          echo -e "${GREEN}✓${RESET} Ollama detected with model ${MODEL}"
+        else
+          MODEL="llama3"
+          echo -e "${GRAY}  Using default model: llama3${RESET}"
+        fi
+      else
+        echo -e "${GRAY}  Ollama not running yet. Start it later: ollama serve${RESET}"
+        MODEL="llama3"
+      fi
+      ;;
+    4)
+      PROVIDER="custom"
+      echo -en "${CYAN}Base URL (e.g. https://api.groq.com/openai):${RESET} "
+      read -r CUSTOM_URL
+      echo -en "${CYAN}Model name:${RESET} "
+      read -r CUSTOM_MODEL
+      MODEL="${CUSTOM_MODEL:-default}"
+      ENV_VAR="CUSTOM_API_KEY"
+      ;;
+    *)  # Default: DeepSeek
+      PROVIDER="deepseek"
+      MODEL="deepseek-chat"
+      ENV_VAR="DEEPSEEK_API_KEY"
+      echo -e "${GRAY}Get a free key: https://platform.deepseek.com/api_keys${RESET}"
+      ;;
+  esac
+
+  if [ "$PROVIDER" != "ollama" ]; then
+    echo -en "${CYAN}API key:${RESET} "
+    read -r API_KEY
+    if [ -n "$API_KEY" ]; then
+      # Store in ~/.cocapn/secrets.json
+      mkdir -p ~/.cocapn
+      if [ -f ~/.cocapn/secrets.json ]; then
+        EXISTING=$(cat ~/.cocapn/secrets.json)
+        echo "$EXISTING" | node -e "
+          const d=[];process.stdin.on('data',c=>d.push(c));process.stdin.on('end',()=>{
+            try{const j=JSON.parse(d.join(''));j['${ENV_VAR}']='${API_KEY}';console.log(JSON.stringify(j,null,2))}
+            catch{console.log('{\"${ENV_VAR}\":\"${API_KEY}\"}')}
+          })" > ~/.cocapn/secrets.json.tmp 2>/dev/null && mv ~/.cocapn/secrets.json.tmp ~/.cocapn/secrets.json \
+        || echo "{\"${ENV_VAR}\":\"${API_KEY}\"}" > ~/.cocapn/secrets.json
+      else
+        echo "{\"${ENV_VAR}\":\"${API_KEY}\"}" > ~/.cocapn/secrets.json
+      fi
+      chmod 600 ~/.cocapn/secrets.json
+      echo -e "${GREEN}✓${RESET} Saved to ~/.cocapn/secrets.json"
     else
-      echo "{\"DEEPSEEK_API_KEY\":\"$API_KEY\"}" > ~/.cocapn/secrets.json
+      echo -e "${GRAY}  Skipped. Set later: export ${ENV_VAR}=your-key${RESET}"
     fi
-    chmod 600 ~/.cocapn/secrets.json
-    echo -e "${GREEN}✓${RESET} Saved to ~/.cocapn/secrets.json"
-  else
-    echo -e "${GRAY}  Skipped. Set later: export DEEPSEEK_API_KEY=your-key${RESET}"
+  fi
+
+  # Update cocapn.json with chosen provider
+  if [ ! -f "cocapn/cocapn.json" ] || grep -q '"provider": "deepseek"' cocapn/cocapn.json 2>/dev/null; then
+    node -e "
+      const fs=require('fs');
+      const c=JSON.parse(fs.readFileSync('cocapn/cocapn.json','utf-8'));
+      c.llm=c.llm||{};
+      c.llm.provider='${PROVIDER}';
+      ${MODEL:+c.llm.model='${MODEL}';}
+      ${CUSTOM_URL:+c.llm.baseUrl='${CUSTOM_URL}';}
+      fs.writeFileSync('cocapn/cocapn.json',JSON.stringify(c,null,2)+'\n');
+    " 2>/dev/null || true
+    echo -e "${GREEN}✓${RESET} Updated cocapn.json with ${PROVIDER} provider"
   fi
 fi
 
 # ─── 7. Write README with cocapn badge ─────────────────────────────────────
 
 if [ -f "README.md" ] && ! grep -q 'cocapn' README.md; then
-  # Append cocapn section to existing README
   cat >> README.md << 'README'
 
 <!-- cocapn -->
 
 ## cocapn
 
-This repo is alive. [cocapn](https://github.com/nicholasgriffintn/cocapn) gives it self-awareness, memory, and a voice.
+This repo is alive. [cocapn](https://github.com/CedarBeach2019/cocapn) gives it self-awareness, memory, and a voice.
 
 ```bash
 npx cocapn          # chat with this repo
@@ -179,7 +257,7 @@ elif [ ! -f "README.md" ]; then
   cat > README.md << README
 # ${REPO_NAME}
 
-[![cocapn](https://img.shields.io/badge/powered%20by-cocapn-cyan?style=flat-square)](https://github.com/nicholasgriffintn/cocapn)
+[![cocapn](https://img.shields.io/badge/powered%20by-cocapn-cyan?style=flat-square)](https://github.com/CedarBeach2019/cocapn)
 
 > This repo is alive.
 
@@ -220,4 +298,5 @@ echo -e "  ${GREEN}npx cocapn --web${RESET}       Web interface on :3100"
 echo -e "  ${GREEN}npx cocapn whoami${RESET}      Meet your repo"
 echo ''
 echo -e "${GRAY}Edit cocapn/soul.md to change who your repo is.${RESET}"
+echo -e "${GRAY}Edit cocapn/cocapn.json to change LLM provider.${RESET}"
 echo ''
