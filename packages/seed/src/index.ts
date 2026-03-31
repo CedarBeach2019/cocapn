@@ -12,11 +12,12 @@
  */
 
 import { parseArgs } from 'node:util';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
-import { DeepSeek } from './llm.js';
+import { LLM, detectOllama } from './llm.js';
+import type { LLMConfig } from './llm.js';
 import { Memory } from './memory.js';
 import { Awareness } from './awareness.js';
 import { loadSoul, soulToSystemPrompt } from './soul.js';
@@ -26,9 +27,12 @@ import { startWebServer } from './web.js';
 // ─── Config ────────────────────────────────────────────────────────────────────
 
 interface Config {
+  port?: number;
+  mode?: string;
+  llm?: LLMConfig;
+  // Legacy flat fields (backward compat)
   apiKey?: string;
   model?: string;
-  port?: number;
   temperature?: number;
   maxTokens?: number;
 }
@@ -43,23 +47,38 @@ function loadConfig(repoDir: string): Config {
   return {};
 }
 
-function getApiKey(config: Config): string {
-  // 1. cocapn.json config
-  if (config.apiKey) return config.apiKey;
-  // 2. Environment variable
-  if (process.env.DEEPSEEK_API_KEY) return process.env.DEEPSEEK_API_KEY;
+function resolveLLMConfig(config: Config): LLMConfig {
+  const llm = config.llm ?? {};
+  // Merge legacy flat fields into llm config
+  return {
+    provider: llm.provider,
+    apiKey: llm.apiKey ?? config.apiKey,
+    baseUrl: llm.baseUrl,
+    model: llm.model ?? config.model,
+    temperature: llm.temperature ?? config.temperature,
+    maxTokens: llm.maxTokens ?? config.maxTokens,
+  };
+}
+
+async function resolveApiKey(config: Config): Promise<string | undefined> {
+  const llm = config.llm ?? {};
+  // 1. Config
+  if (llm.apiKey ?? config.apiKey) return llm.apiKey ?? config.apiKey;
+  // 2. Environment variables
+  for (const env of ['DEEPSEEK_API_KEY', 'OPENAI_API_KEY']) {
+    if (process.env[env]) return process.env[env];
+  }
   // 3. ~/.cocapn/secrets.json
   const secretPath = join(homedir(), '.cocapn', 'secrets.json');
   if (existsSync(secretPath)) {
     try {
       const secrets = JSON.parse(readFileSync(secretPath, 'utf-8')) as Record<string, string>;
-      if (secrets.DEEPSEEK_API_KEY) return secrets.DEEPSEEK_API_KEY;
+      for (const key of ['DEEPSEEK_API_KEY', 'OPENAI_API_KEY']) {
+        if (secrets[key]) return secrets[key];
+      }
     } catch { /* skip */ }
   }
-  console.error('[cocapn] No API key found. Set one:');
-  console.error('  export DEEPSEEK_API_KEY=your-key');
-  console.error('  or add "apiKey" to cocapn.json');
-  process.exit(1);
+  return undefined;
 }
 
 // ─── Command handlers ──────────────────────────────────────────────────────────
@@ -138,25 +157,90 @@ function cmdMemoryClear(memory: Memory): string {
   return '\x1b[90mMemory cleared.\x1b[0m';
 }
 
+function cmdHelp(agentName: string): string {
+  const G = '\x1b[32m', R = '\x1b[0m';
+  return [
+    `${agentName} — commands:`,
+    `${G}  /help${R}              Show this help`,
+    `${G}  /whoami${R}            Full self-perception`,
+    `${G}  /memory list${R}       Show all memories`,
+    `${G}  /memory clear${R}      Clear all memories`,
+    `${G}  /memory search <q>${R} Search memories + git history`,
+    `${G}  /export${R}            Export memories to markdown`,
+    `${G}  /import <file>${R}     Import facts from JSON file`,
+    `${G}  /git log${R}           Recent commits`,
+    `${G}  /git stats${R}         Repo statistics`,
+    `${G}  /git diff${R}          Uncommitted changes`,
+    `${G}  /clear${R}             Clear context`,
+    `${G}  /quit${R}              Exit`,
+  ].join('\n');
+}
+
+function cmdExport(memory: Memory): string {
+  const GR = '\x1b[90m', G = '\x1b[32m', R = '\x1b[0m';
+  const lines: string[] = ['# Cocapn Memory Export', '', `Exported: ${new Date().toISOString()}`, ''];
+  const facts = Object.entries(memory.facts);
+  if (facts.length > 0) {
+    lines.push('## Facts', '');
+    for (const [k, v] of facts) lines.push(`- **${k}**: ${v}`);
+    lines.push('');
+  }
+  if (memory.messages.length > 0) {
+    lines.push('## Messages', '');
+    for (const m of memory.messages) {
+      const role = m.role === 'user' ? 'Human' : 'Assistant';
+      lines.push(`**${role}** (${m.ts}):`);
+      lines.push(`${m.content}`, '');
+    }
+  }
+  const outPath = join(process.cwd(), '.cocapn', 'memories.md');
+  writeFileSync(outPath, lines.join('\n'), 'utf-8');
+  return `${G}Exported ${facts.length} facts, ${memory.messages.length} messages${R}\n${GR}${outPath}${R}`;
+}
+
+function cmdImport(memory: Memory, filePath: string): string {
+  const GR = '\x1b[90m', G = '\x1b[32m', R = '\x1b[0m';
+  const resolved = filePath.startsWith('/') ? filePath : join(process.cwd(), filePath);
+  if (!existsSync(resolved)) return `${GR}File not found: ${resolved}${R}`;
+  try {
+    const raw = readFileSync(resolved, 'utf-8');
+    const data = JSON.parse(raw) as Record<string, string>;
+    let count = 0;
+    for (const [k, v] of Object.entries(data)) {
+      if (typeof v === 'string') { memory.facts[k] = v; count++; }
+    }
+    memory['save']();
+    return `${G}Imported ${count} facts from ${filePath}${R}`;
+  } catch {
+    return `${GR}Invalid JSON in ${filePath}${R}`;
+  }
+}
+
 // ─── Terminal REPL ─────────────────────────────────────────────────────────────
 
-async function terminalChat(llm: DeepSeek, memory: Memory, awareness: Awareness, systemPrompt: string): Promise<void> {
+async function terminalChat(llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string): Promise<void> {
   const self = awareness.narrate();
   const B = '\x1b[1m', C = '\x1b[36m', G = '\x1b[32m', GR = '\x1b[90m', R = '\x1b[0m';
 
   console.log(`\n${C}${B}cocapn${R} ${GR}— the repo IS the agent${R}`);
   console.log(`${GR}${self.slice(0, 200)}${self.length > 200 ? '...' : ''}`);
-  console.log(`${GR}Commands: /quit  /clear  /whoami  /memory <list|clear|search q>  /git <log|stats|diff>${R}\n`);
+  console.log(`${GR}Type /help for commands${R}\n`);
 
-  const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: `${G}> ${R}` });
+  const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: `${C}you${R}> ` });
   rl.prompt();
 
   for await (const line of rl) {
     const input = line.trim();
     if (!input) { rl.prompt(); continue; }
-    if (input === '/quit' || input === '/exit') { console.log(`${GR}Goodbye!${R}`); rl.close(); return; }
+    if (input === '/quit' || input === '/exit') {
+      console.log(`${GR}Goodbye! I'll be here when you come back. Your memories are safe in cocapn/memory.json${R}`);
+      rl.close(); return;
+    }
+    if (input === '/help') { console.log(cmdHelp(soul.name)); rl.prompt(); continue; }
     if (input === '/clear') { console.log(`${GR}Context cleared.${R}`); rl.prompt(); continue; }
     if (input === '/whoami') { console.log(cmdWhoami(awareness, memory)); rl.prompt(); continue; }
+    if (input === '/export') { console.log(cmdExport(memory)); rl.prompt(); continue; }
+    if (input.startsWith('/import ')) { console.log(cmdImport(memory, input.slice(8))); rl.prompt(); continue; }
 
     // /memory commands
     if (input === '/memory' || input === '/memory list') { console.log(cmdMemoryList(memory)); rl.prompt(); continue; }
@@ -196,9 +280,8 @@ async function terminalChat(llm: DeepSeek, memory: Memory, awareness: Awareness,
     ].join('\n');
 
     memory.addMessage('user', input);
-    process.stdout.write(`${B}Assistant: ${R}`);
+    process.stdout.write(`${C}${soul.name}: ${R}`);
     let full = '';
-    let tokenCount = 0;
     let interrupted = false;
 
     // Allow Ctrl+C to interrupt streaming
@@ -208,14 +291,15 @@ async function terminalChat(llm: DeepSeek, memory: Memory, awareness: Awareness,
     try {
       for await (const chunk of llm.chatStream([{ role: 'system', content: fullSystem }, { role: 'user', content: input }])) {
         if (interrupted) break;
-        if (chunk.type === 'content' && chunk.text) { process.stdout.write(chunk.text); full += chunk.text; tokenCount++; }
+        if (chunk.type === 'content' && chunk.text) { process.stdout.write(chunk.text); full += chunk.text; }
         if (chunk.type === 'error' && chunk.error) process.stdout.write(`\n${chunk.error}`);
       }
     } catch (err) { process.stdout.write(`\nError: ${String(err)}`); }
 
     process.removeListener('SIGINT', onInterrupt);
     if (interrupted) process.stdout.write(`\n${GR}[interrupted]${R}`);
-    console.log(`\n${GR}[${tokenCount} chunks]${R}\n`);
+    const wordCount = full ? full.split(/\s+/).filter(Boolean).length : 0;
+    console.log(`\n${GR}[${wordCount} words]${R}\n`);
     if (full) memory.addMessage('assistant', full);
     rl.prompt();
   }
@@ -257,7 +341,6 @@ async function main(): Promise<void> {
 
   const repoDir = process.cwd();
   const config = loadConfig(repoDir);
-  const apiKey = getApiKey(config);
 
   // Load soul — try soul.md, then cocapn/soul.md
   let soul: Soul | undefined;
@@ -271,7 +354,29 @@ async function main(): Promise<void> {
   }
 
   const systemPrompt = soulToSystemPrompt(soul);
-  const llm = new DeepSeek({ apiKey, model: config.model, temperature: config.temperature, maxTokens: config.maxTokens });
+
+  // Resolve LLM config — try API key first, then auto-detect Ollama
+  let llmConfig = resolveLLMConfig(config);
+  const apiKey = await resolveApiKey(config);
+  if (apiKey) {
+    llmConfig = { ...llmConfig, apiKey };
+  } else if (!llmConfig.provider || llmConfig.provider === 'ollama') {
+    const ollama = await detectOllama();
+    if (ollama) {
+      console.log(`[cocapn] No API key found. Using Ollama (local) with model ${ollama.model}`);
+      llmConfig = { ...llmConfig, provider: 'ollama', model: llmConfig.model ?? ollama.model };
+    } else {
+      console.error('[cocapn] No API key found and Ollama not detected. Set one:');
+      console.error('  export DEEPSEEK_API_KEY=your-key   (or OPENAI_API_KEY)');
+      console.error('  or install Ollama: https://ollama.com');
+      process.exit(1);
+    }
+  } else {
+    const ollama = await detectOllama();
+    if (ollama && !llmConfig.model) llmConfig = { ...llmConfig, model: ollama.model };
+  }
+
+  const llm = new LLM(llmConfig);
   const memory = new Memory(repoDir);
   const awareness = new Awareness(repoDir);
 

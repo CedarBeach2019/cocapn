@@ -265,8 +265,23 @@ describe('Awareness', () => {
 // ─── LLM Tests ────────────────────────────────────────────────────────────────
 
 describe('DeepSeek', () => {
-  it('initializes', () => {
+  it('initializes with defaults', () => {
     expect(new DeepSeek({ apiKey: 'test' })).toBeDefined();
+  });
+
+  it('initializes as LLM with provider', () => {
+    const openai = new (llmMod.LLM)({ provider: 'openai', apiKey: 'test' });
+    expect(openai).toBeDefined();
+  });
+
+  it('initializes as LLM with ollama', () => {
+    const ollama = new (llmMod.LLM)({ provider: 'ollama' });
+    expect(ollama).toBeDefined();
+  });
+
+  it('supports custom baseUrl', () => {
+    const custom = new (llmMod.LLM)({ provider: 'custom', baseUrl: 'https://groq.example.com', apiKey: 'test' });
+    expect(custom).toBeDefined();
   });
 });
 

@@ -20,7 +20,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { DeepSeek } from './llm.js';
+import type { LLM } from './llm.js';
 import type { Memory } from './memory.js';
 import type { Awareness } from './awareness.js';
 import type { Soul } from './soul.js';
@@ -63,7 +63,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 export function startWebServer(
   port: number,
-  llm: DeepSeek,
+  llm: LLM,
   memory: Memory,
   awareness: Awareness,
   soul: Soul,
@@ -198,7 +198,7 @@ export function startWebServer(
 
 async function handleChat(
   req: IncomingMessage, res: ServerResponse,
-  llm: DeepSeek, memory: Memory, awareness: Awareness, systemPrompt: string,
+  llm: LLM, memory: Memory, awareness: Awareness, systemPrompt: string,
 ): Promise<void> {
   const body = await readBody(req);
   let userMessage: string;
