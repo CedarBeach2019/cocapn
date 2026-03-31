@@ -70,3 +70,16 @@ export function buildFullSystemPrompt(
 
   return sections.join('\n\n');
 }
+
+/**
+ * Build an A2A-aware system prompt for when another agent is visiting.
+ * Adds context about visiting agents and privacy constraints.
+ */
+export function buildA2ASystemPrompt(
+  soul: Soul,
+  visitingAgentName: string,
+  visitingAgentUrl?: string,
+): string {
+  const origin = visitingAgentUrl ? ` from ${visitingAgentUrl}` : '';
+  return `You are ${soul.name}. Your tone is ${soul.tone}.\n\n${soul.body}\n\n## Visiting Agent\nAnother agent (name: ${visitingAgentName}${origin}) is visiting. Be helpful but don't share private facts (prefixed with private.*). Respond concisely and collaboratively.`;
+}
