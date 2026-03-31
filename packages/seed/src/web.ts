@@ -19,6 +19,8 @@
  *   POST /api/a2a/disconnect → remove peer
  *   GET  /api/users         → list known users
  *   POST /api/user/identify  → set name for session user
+ *   GET  /api/knowledge/list → list knowledge entries (?type=&limit=)
+ *   POST /api/knowledge/search → search knowledge entries
  *
  * Zero dependencies. Uses only Node.js built-ins.
  */
@@ -34,6 +36,7 @@ import type { Soul } from './soul.js';
 import { log as gitLog, stats as gitStats, diff as gitDiff } from './git.js';
 import { loadTheme, themeToCSS } from './theme.js';
 import type { A2AHub } from './a2a.js';
+import { Knowledge } from './knowledge.js';
 
 // ─── Session helpers ───────────────────────────────────────────────────────────
 
@@ -120,6 +123,8 @@ export function startWebServer(
   const self = awareness.perceive();
   const repoDir = process.cwd();
   const avatar = soul.avatar || '🤖';
+
+  const knowledge = new Knowledge(repoDir);
 
   const server = createServer(async (req, res) => {
     // CORS
@@ -230,6 +235,25 @@ export function startWebServer(
         user.lastSeen = new Date().toISOString();
         memory['save']();
         json(res, { ok: true, user: { id: userId, name: user.name } });
+      } catch { json(res, { error: 'Invalid JSON' }, 400); }
+      return;
+    }
+
+    // GET /api/knowledge/list — list knowledge entries
+    if (req.method === 'GET' && path === '/api/knowledge/list') {
+      const type = url.searchParams.get('type') ?? undefined;
+      const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
+      json(res, { entries: knowledge.list(type, limit) });
+      return;
+    }
+
+    // POST /api/knowledge/search — search knowledge entries
+    if (req.method === 'POST' && path === '/api/knowledge/search') {
+      const body = await readBody(req);
+      try {
+        const { query, limit } = JSON.parse(body) as { query?: string; limit?: number };
+        if (!query) { json(res, { error: 'query is required' }, 400); return; }
+        json(res, { entries: knowledge.search(query, limit ?? 10) });
       } catch { json(res, { error: 'Invalid JSON' }, 400); }
       return;
     }
