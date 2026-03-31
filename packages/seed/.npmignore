@@ -1,0 +1,10 @@
+src/
+tests/
+docs/
+*.tsconfig
+tsconfig.json
+vitest.config.ts
+*.test.ts
+node_modules/
+.git/
+.gitignore
