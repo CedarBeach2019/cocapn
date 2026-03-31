@@ -69,6 +69,7 @@ import { handleChatStream } from "../handlers/llm.js";
 import { handleMemoryListTyped, handleMemoryAddTyped, handleMemoryDeleteTyped, handleWikiListTyped, handleWikiReadTyped, handleSoulGetTyped } from "../handlers/memory.js";
 import { handleFleetJoin, handleFleetSubmitTask, handleFleetTaskStatus, handleFleetListAgents, handleFleetHeartbeat } from "../handlers/fleet.js";
 import { handleQueueStatus, handleQueueCancel } from "../handlers/queue.js";
+import { Consciousness, SelfNarrative, WorldModel, Embodiment } from "../experience/index.js";
 
 // Re-export types for backward compatibility
 export type { BridgeServerOptions, BridgeServerEventMap, TypedMessage, JsonRpcRequest, SessionState };
@@ -464,6 +465,12 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       return;
     }
 
+    // Handle experience API endpoints (first-person perspective)
+    if (url.startsWith('/api/experience/')) {
+      await this.handleExperienceRequest(req, res, url);
+      return;
+    }
+
     // Handle A2A peer endpoints
     await handleHttpPeerRequest(req, res, this.handlerCtx);
   }
@@ -619,6 +626,110 @@ export class BridgeServer extends EventEmitter<BridgeServerEventMap> {
       const message = err instanceof Error ? err.message : String(err);
       const code = message.includes("not found") ? 404 : 500;
       setJson(code, { error: message });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Experience API (first-person perspective)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * HTTP endpoints for the agent's first-person experience.
+   *
+   *   GET  /api/experience/state   — current perception
+   *   GET  /api/experience/story   — agent's self-narrative
+   *   GET  /api/experience/health  — body health report
+   *   POST /api/experience/reflect — trigger self-reflection
+   */
+  private async handleExperienceRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: string,
+  ): Promise<void> {
+    const setJson = (code: number, body: unknown) => {
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+
+    const brain = this.options.brain;
+    if (!brain) {
+      setJson(503, { error: "Brain not available" });
+      return;
+    }
+
+    const repoRoot = this.options.repoRoot;
+    const segments = url.replace("/api/experience/", "").split("/").filter(Boolean);
+    const action = segments[0] || "";
+    const method = req.method || "GET";
+
+    try {
+      // GET /api/experience/state — current perception
+      if (action === "state" && method === "GET") {
+        const consciousness = new Consciousness(repoRoot, brain);
+        const perception = await consciousness.perceive();
+        setJson(200, { ok: true, perception });
+        return;
+      }
+
+      // GET /api/experience/story — agent's self-narrative
+      if (action === "story" && method === "GET") {
+        const narrative = new SelfNarrative(repoRoot, brain);
+        const story = await narrative.myStory();
+        const currentState = await narrative.myCurrentState();
+        setJson(200, { ok: true, story, currentState });
+        return;
+      }
+
+      // GET /api/experience/health — body health report
+      if (action === "health" && method === "GET") {
+        const embodiment = new Embodiment(repoRoot, brain);
+        const bodyMap = await embodiment.myBody();
+        const health = await embodiment.healthCheck();
+        setJson(200, { ok: true, body: bodyMap, health });
+        return;
+      }
+
+      // POST /api/experience/reflect — trigger self-reflection
+      if (action === "reflect" && method === "POST") {
+        const consciousness = new Consciousness(repoRoot, brain);
+        const [perception, introspection, expression] = await Promise.all([
+          consciousness.perceive(),
+          consciousness.introspect(),
+          consciousness.express(),
+        ]);
+        const narrative = new SelfNarrative(repoRoot, brain);
+        const story = await narrative.myStory();
+        const world = new WorldModel(repoRoot, brain);
+        const [worldDesc, purpose] = await Promise.all([
+          world.myWorld(),
+          world.myPurpose(),
+        ]);
+        const embodiment = new Embodiment(repoRoot, brain);
+        const health = await embodiment.healthCheck();
+
+        setJson(200, {
+          ok: true,
+          reflection: {
+            perception,
+            introspection,
+            expression,
+            story,
+            world: worldDesc,
+            purpose,
+            health: {
+              status: health.status,
+              feeling: health.feeling,
+              organSummary: health.organs.map((o) => ({ name: o.name, status: o.status })),
+            },
+          },
+        });
+        return;
+      }
+
+      setJson(404, { error: `Unknown experience endpoint: ${action}` });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setJson(500, { error: message });
     }
   }
 
