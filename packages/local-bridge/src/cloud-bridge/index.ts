@@ -305,3 +305,4 @@ export * from './pii.js';
 export * from './streaming.js';
 export * from './routing.js';
 export * from './connector.js';
+export * from './tunnel.js';

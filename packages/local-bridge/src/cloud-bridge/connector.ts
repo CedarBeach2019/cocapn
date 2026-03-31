@@ -253,17 +253,18 @@ export class CloudConnector {
   /**
    * Start the automatic heartbeat loop.
    * Sends a heartbeat request every heartbeatInterval.
+   * Posts to /api/heartbeat to report local agent status.
    */
   startHeartbeat(): void {
     if (this.heartbeatTimer) {
       this.stopHeartbeat();
     }
 
-    // Initial ping
-    void this.ping();
+    // Initial ping + heartbeat
+    void this.pingAndHeartbeat();
 
     this.heartbeatTimer = setInterval(() => {
-      void this.ping();
+      void this.pingAndHeartbeat();
     }, this.config.heartbeatInterval);
   }
 
@@ -274,6 +275,47 @@ export class CloudConnector {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+  }
+
+  /**
+   * Ping health endpoint and send heartbeat in parallel.
+   */
+  private async pingAndHeartbeat(): Promise<void> {
+    await Promise.allSettled([
+      this.ping(),
+      this.sendHeartbeat(),
+    ]);
+  }
+
+  /**
+   * POST heartbeat to cloud worker to report local agent status.
+   */
+  private async sendHeartbeat(): Promise<void> {
+    const jwt = this.generateJwt();
+
+    try {
+      const response = await fetch(`${this.config.workerUrl}/api/heartbeat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instanceId: this.config.instanceId,
+          bridgeMode: this.config.bridgeMode,
+          tunnelActive: false, // Tunnel status tracked separately
+          version: '0.2.0',
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text().catch(() => '');
+        console.warn(`[CloudConnector] Heartbeat POST failed: ${response.status} ${error}`);
+      }
+    } catch (err) {
+      // Non-fatal — cloud may be temporarily unreachable
+      console.warn(`[CloudConnector] Heartbeat POST error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

@@ -29,7 +29,9 @@ import { chatWithDeepSeek } from "./llm.js";
 import type { ChatMessage } from "./llm.js";
 import { CHAT_HTML } from "./chat-html.js";
 import { SoulCompiler, type CompiledSoul } from "./soul-compiler.js";
+import { RelayState, HeartbeatTracker, publishingFilter, type AgentHeartbeat } from "./relay.js";
 export { AdmiralDO } from "./admiral.js";
+export { RelayDO } from "./relay-do.js";
 
 // Auth imports
 import {
@@ -54,6 +56,7 @@ export interface Env {
   PUBLIC_REPO:      string;
   BRIDGE_MODE:      string;
   ADMIRAL:          DurableObjectNamespace;
+  RELAY_DO:         DurableObjectNamespace;
   AUTH_KV:          KVNamespace;
 }
 
@@ -262,6 +265,21 @@ async function checkBrainHealth(env: Env): Promise<BrainHealthInfo> {
   }
 
   return { factsAvailable, wikiAvailable, soulAvailable, kvHealthy };
+}
+
+// ─── Module-level heartbeat tracker ────────────────────────────────────────────
+
+const heartbeatTracker = new HeartbeatTracker({ staleTimeoutMs: 90000 });
+
+// Prune stale heartbeats periodically
+let lastPrune = 0;
+
+function maybePrune(): void {
+  const now = Date.now();
+  if (now - lastPrune > 60000) {
+    heartbeatTracker.prune();
+    lastPrune = now;
+  }
 }
 
 // ─── HTTP API Handlers ─────────────────────────────────────────────────────────
@@ -552,6 +570,192 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// ─── Cloud Bridge Handlers ──────────────────────────────────────────────────────
+
+/**
+ * POST /api/heartbeat
+ *
+ * Local bridge reports its status. Cloud marks agent as online.
+ */
+async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = await request.json() as {
+      instanceId?: string;
+      bridgeMode?: string;
+      tunnelActive?: boolean;
+      version?: string;
+      metadata?: Record<string, unknown>;
+    };
+
+    if (!body.instanceId) {
+      return errorResponse("Missing instanceId", 400);
+    }
+
+    // Verify fleet JWT
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return errorResponse("Missing or invalid Authorization header", 401);
+    }
+
+    const token = authHeader.slice(7);
+    try {
+      verifyFleetJwt(token, env.FLEET_JWT_SECRET);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return errorResponse(`Invalid JWT: ${msg}`, 401);
+    }
+
+    const heartbeat: AgentHeartbeat = {
+      instanceId: body.instanceId,
+      bridgeMode: body.bridgeMode ?? "private",
+      tunnelActive: body.tunnelActive ?? false,
+      timestamp: new Date().toISOString(),
+      version: body.version ?? "0.0.0",
+      metadata: body.metadata,
+    };
+
+    heartbeatTracker.recordHeartbeat(heartbeat);
+    maybePrune();
+
+    // Store latest heartbeat in KV for persistence across Worker restarts
+    await env.AUTH_KV.put(
+      `heartbeat:${body.instanceId}`,
+      JSON.stringify(heartbeat),
+      { expirationTtl: 120 }
+    );
+
+    return jsonResponse({
+      ok: true,
+      received: heartbeat.timestamp,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(`Heartbeat failed: ${msg}`, 500);
+  }
+}
+
+/**
+ * GET /api/agent-status
+ *
+ * Returns online/offline status of the local agent.
+ */
+async function handleAgentOnlineStatus(env: Env): Promise<Response> {
+  maybePrune();
+
+  const allHeartbeats = heartbeatTracker.getAll();
+
+  // Also check KV for any persisted heartbeats
+  const kvList = await env.AUTH_KV.list({ prefix: "heartbeat:" });
+  for (const key of kvList.keys) {
+    const instanceId = key.name.replace("heartbeat:", "");
+    if (!heartbeatTracker.getHeartbeat(instanceId)) {
+      const raw = await env.AUTH_KV.get(key.name);
+      if (raw) {
+        try {
+          const hb = JSON.parse(raw) as AgentHeartbeat;
+          heartbeatTracker.recordHeartbeat(hb);
+        } catch {
+          // Malformed KV entry
+        }
+      }
+    }
+  }
+
+  const agents = heartbeatTracker.getAll();
+  const online = agents.some((a) => a.tunnelActive);
+
+  return jsonResponse({
+    ok: true,
+    online,
+    agents: agents.map((a) => ({
+      instanceId: a.instanceId,
+      bridgeMode: a.bridgeMode,
+      online: a.tunnelActive,
+      lastHeartbeat: a.timestamp,
+      version: a.version,
+    })),
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * GET /ws (WebSocket upgrade)
+ *
+ * Public client WebSocket relay. Connects client to the local agent
+ * through the RelayDO Durable Object.
+ */
+async function handleWsRelay(request: Request, env: Env): Promise<Response> {
+  // Route to RelayDO for persistent relay state
+  const relayId = env.RELAY_DO.idFromName("default");
+  const relayStub = env.RELAY_DO.get(relayId);
+
+  // Forward the request to the RelayDO
+  return relayStub.fetch(request);
+}
+
+/**
+ * GET /api/tunnel (WebSocket upgrade)
+ *
+ * Local agent establishes reverse tunnel through this endpoint.
+ * The tunnel allows the cloud worker to relay messages to the local agent.
+ */
+async function handleTunnel(request: Request, env: Env): Promise<Response> {
+  // Verify auth
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
+  if (!token) {
+    return errorResponse("Missing tunnel token", 401);
+  }
+
+  try {
+    verifyFleetJwt(token, env.FLEET_JWT_SECRET);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(`Invalid tunnel JWT: ${msg}`, 401);
+  }
+
+  // Route to RelayDO
+  const relayId = env.RELAY_DO.idFromName("default");
+  const relayStub = env.RELAY_DO.get(relayId);
+
+  return relayStub.fetch(request);
+}
+
+/**
+ * POST /api/chat (enhanced)
+ *
+ * If local agent is online via tunnel, proxy the chat request through the relay.
+ * Otherwise, fall back to direct DeepSeek LLM call (existing behavior).
+ */
+async function handleChatProxy(
+  request: Request,
+  env: Env,
+  relayState: RelayState
+): Promise<Response> {
+  // If tunnel is active, forward to local agent
+  if (relayState.isTunnelActive()) {
+    try {
+      const body = await request.json() as { messages?: ChatMessage[] };
+      const relayMsg = JSON.stringify({
+        type: "chat",
+        payload: body,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Send to tunnel and wait for response
+      relayState.handleClientMessage("http-proxy", relayMsg);
+
+      // For HTTP, we don't wait for WebSocket response — fall through to DeepSeek
+      // The WebSocket path handles full relay; HTTP is a best-effort proxy
+    } catch {
+      // Fall through to DeepSeek
+    }
+  }
+
+  // Fall back to existing DeepSeek chat
+  return handleChat(request, env);
+}
+
 // ─── Response Helpers ─────────────────────────────────────────────────────────
 
 const CORS_HEADERS: Record<string, string> = {
@@ -636,6 +840,28 @@ export default {
     if (pathname.startsWith("/api/status/") && request.method === "GET") {
       const taskId = pathname.slice("/api/status/".length);
       return handleGetTaskStatus(taskId, env);
+    }
+
+    // ── Cloud Bridge Routes ──────────────────────────────────────────────────
+
+    // Agent heartbeat (local bridge reports online status)
+    if (pathname === "/api/heartbeat" && request.method === "POST") {
+      return handleHeartbeat(request, env);
+    }
+
+    // Agent online/offline status
+    if (pathname === "/api/agent-status" && request.method === "GET") {
+      return handleAgentOnlineStatus(env);
+    }
+
+    // WebSocket relay for public clients
+    if (pathname === "/ws" && request.headers.get("Upgrade") === "websocket") {
+      return handleWsRelay(request, env);
+    }
+
+    // Tunnel connection from local agent
+    if (pathname === "/api/tunnel" && request.headers.get("Upgrade") === "websocket") {
+      return handleTunnel(request, env);
     }
 
     // ── Auth Routes ─────────────────────────────────────────────────────────────
