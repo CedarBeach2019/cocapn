@@ -1,0 +1,19 @@
+:root {
+  --color-primary: #7c2d12;
+  --color-secondary: #9a3412;
+  --color-accent: #c2410c;
+  --color-background: #fdf8f0;
+  --color-surface: #ffffff;
+  --color-text: #1c1917;
+  --color-text-secondary: #78716c;
+  --color-border: #e7ddd3;
+  --color-success: #16a34a;
+  --color-warning: #b45309;
+  --color-error: #dc2626;
+  --color-info: #7c2d12;
+  --font-body: 'Georgia', 'Times New Roman', serif;
+  --font-heading: 'Georgia', 'Times New Roman', serif;
+  --font-mono: 'Fira Code', monospace;
+  --radius: 4px;
+  --shadow: 0 1px 3px rgba(124, 45, 18, 0.06);
+}

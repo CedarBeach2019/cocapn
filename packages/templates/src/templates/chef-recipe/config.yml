@@ -1,0 +1,60 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.7
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: cooking
+  memoryLimit: 2000
+
+features:
+  recipeStorage: true
+  mealPlanning: true
+  groceryLists: true
+  cookingTimers: true
+  substitutionHelp: true
+  techniqueGuides: true
+
+kitchen:
+  dietaryRestrictions: []
+  allergies: []
+  cuisinePreferences: []
+  equipment: []
+  householdSize: 2
+  pantryStaples:
+    - salt
+    - pepper
+    - olive-oil
+    - garlic
+    - onion
+
+templates:
+  - weekly-meal-plan
+  - grocery-list
+  - recipe-card
+  - cooking-timeline
+  - leftover-makeover
+
+plugins:
+  - ingredient-substitutor
+  - recipe-scaler

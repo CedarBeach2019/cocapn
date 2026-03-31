@@ -1,0 +1,53 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 10
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.3
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: home
+  memoryLimit: 2000
+
+features:
+  deviceControl: true
+  routineScheduling: true
+  energyMonitoring: true
+  alertManagement: true
+  sceneCreation: true
+  maintenanceTracking: true
+
+home:
+  rooms: []
+  devices: []
+  automations: []
+  energyThreshold: null
+
+templates:
+  - morning-routine
+  - away-mode
+  - movie-night
+  - sleep-routine
+  - guest-access
+
+plugins:
+  - energy-monitor
+  - device-health

@@ -1,0 +1,60 @@
+config:
+  mode: hybrid
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.4
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: support
+  memoryLimit: 2000
+
+features:
+  faqManagement: true
+  ticketSystem: true
+  responseTemplates: true
+  escalationRules: true
+  customerNotes: true
+  satisfactionTracking: true
+
+business:
+  hours:
+    start: "09:00"
+    end: "18:00"
+    timezone: "America/New_York"
+    weekdays: [1, 2, 3, 4, 5]
+  escalation:
+    critical: 15
+    high: 60
+    medium: 240
+    low: 1440
+
+templates:
+  - welcome-response
+  - bug-report-template
+  - billing-inquiry
+  - feature-request
+  - escalation-notice
+  - resolution-confirmation
+
+plugins:
+  - knowledge-base
+  - ticket-prioritizer

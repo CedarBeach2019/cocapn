@@ -1,0 +1,55 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.6
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: fitness
+  memoryLimit: 2000
+
+features:
+  workoutLogging: true
+  mealTracking: true
+  progressCharts: true
+  goalSetting: true
+  workoutPlanning: true
+  streakTracking: true
+
+preferences:
+  defaultWorkoutDuration: 45
+  defaultDifficulty: beginner
+  equipment:
+    - bodyweight
+  dietaryRestrictions: []
+  goals: []
+
+templates:
+  - workout-plan
+  - weekly-schedule
+  - meal-plan
+  - progress-report
+  - goal-setting
+
+plugins:
+  - exercise-library
+  - nutrition-calculator

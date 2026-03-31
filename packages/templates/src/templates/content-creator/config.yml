@@ -1,0 +1,48 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.8
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: content
+  memoryLimit: 2000
+
+features:
+  contentCalendar: true
+  draftManagement: true
+  hashtagSuggestions: true
+  analyticsDashboard: true
+  contentRepurposing: true
+  trendMonitoring: true
+
+templates:
+  - twitter-thread
+  - linkedin-post
+  - newsletter-issue
+  - instagram-caption
+  - blog-post-outline
+  - content-calendar-weekly
+
+plugins:
+  - trend-tracker
+  - hashtag-researcher

@@ -1,0 +1,57 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: true
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.4
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: project
+  memoryLimit: 2000
+
+features:
+  sprintPlanning: true
+  burndownTracking: true
+  standupNotes: true
+  retrospective: true
+  dependencyMapping: true
+  blockerManagement: true
+  releasePlanning: true
+
+project:
+  methodology: scrum
+  teamSize: 5
+  sprintLength: 14
+  workingDays: [1, 2, 3, 4, 5]
+  toolsIntegration:
+    - github
+
+templates:
+  - sprint-planning
+  - standup-template
+  - retrospective
+  - release-notes
+  - burndown-report
+  - blocker-alert
+
+plugins:
+  - velocity-tracker
+  - dependency-graph

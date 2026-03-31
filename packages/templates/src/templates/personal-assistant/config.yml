@@ -1,0 +1,48 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 15
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.5
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: personal
+  memoryLimit: 2000
+
+features:
+  calendarManagement: true
+  taskLists: true
+  habitTracking: true
+  billReminders: true
+  shoppingLists: true
+  travelPlanning: true
+  contactManagement: true
+
+templates:
+  - daily-briefing
+  - weekly-review
+  - packing-list
+  - grocery-list
+  - appointment-prep
+
+plugins:
+  - reminder-engine
+  - priority-scheduler

@@ -1,0 +1,55 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.7
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: language
+  memoryLimit: 2000
+
+features:
+  vocabularyLists: true
+  grammarLessons: true
+  conversationPractice: true
+  progressTracking: true
+  culturalContext: true
+  writingExercises: true
+
+learning:
+  targetLanguage: ""
+  currentLevel: "A1"
+  nativeLanguage: "en"
+  learningStyle: "balanced"
+  dailyGoal: 15
+  spacedRepetition: true
+
+templates:
+  - vocabulary-session
+  - grammar-lesson
+  - conversation-prompt
+  - writing-exercise
+  - progress-review
+
+plugins:
+  - spaced-repetition
+  - difficulty-scaler

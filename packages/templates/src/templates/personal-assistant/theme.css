@@ -1,0 +1,19 @@
+:root {
+  --color-primary: #7c3aed;
+  --color-secondary: #8b5cf6;
+  --color-accent: #a78bfa;
+  --color-background: #faf5ff;
+  --color-surface: #ffffff;
+  --color-text: #1e1b4b;
+  --color-text-secondary: #6b7280;
+  --color-border: #e9d5ff;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #7c3aed;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-heading: system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(124, 58, 237, 0.08);
+}

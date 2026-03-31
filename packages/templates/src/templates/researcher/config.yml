@@ -1,0 +1,50 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.3
+  maxTokens: 4096
+  systemPrompt:
+    prependCitations: true
+    appendDisclaimer: true
+
+brain:
+  autoSync: true
+  factsNamespace: research
+  memoryLimit: 2000
+
+features:
+  citationTracking: true
+  paperSummaries: true
+  experimentLog: true
+  researchTimeline: true
+  bibliographyExport: true
+  literatureSearch: true
+
+templates:
+  - literature-review
+  - paper-outline
+  - experiment-log
+  - grant-proposal
+  - conference-abstract
+
+plugins:
+  - citation-formatter
+  - bibliography-manager

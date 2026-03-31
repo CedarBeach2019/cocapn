@@ -1,0 +1,55 @@
+config:
+  mode: local
+  port: 8787
+
+sync:
+  interval: 30
+  autoCommit: true
+  autoPush: false
+
+capabilities:
+  filesystem: true
+  git: true
+  llm: deepseek
+  vectorSearch: auto
+  mcp: true
+  fleet: false
+  sandbox: true
+
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  temperature: 0.9
+  maxTokens: 4096
+
+brain:
+  autoSync: true
+  factsNamespace: writing
+  memoryLimit: 2000
+
+features:
+  characterSheets: true
+  plotOutlines: true
+  chapterTracking: true
+  writingPrompts: true
+  worldbuilding: true
+  revisionSupport: true
+
+writing:
+  genre: ""
+  style: ""
+  wordCountGoal: 1000
+  dailyGoal: 500
+  projects: []
+
+templates:
+  - character-sheet
+  - plot-outline
+  - chapter-plan
+  - worldbuilding-doc
+  - revision-checklist
+  - writing-sprint
+
+plugins:
+  - word-counter
+  - prompt-generator
