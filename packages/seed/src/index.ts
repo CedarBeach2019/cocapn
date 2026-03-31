@@ -27,6 +27,7 @@ import { PluginLoader } from './plugins.js';
 import type { ChatContext } from './plugins.js';
 import { A2AHub } from './a2a.js';
 import { Knowledge } from './knowledge.js';
+import { startMcpServer } from './mcp.js';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -487,6 +488,7 @@ async function main(): Promise<void> {
     options: {
       port: { type: 'string', default: '3100' },
       web: { type: 'boolean', default: false },
+      mcp: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },
@@ -507,6 +509,7 @@ async function main(): Promise<void> {
     console.log('cocapn — your repo is alive');
     console.log('  cocapn              Start chat (terminal)');
     console.log('  cocapn --web        Start web chat');
+    console.log('  cocapn --mcp        Start MCP server for coding agents');
     console.log('  cocapn --port N     Set web port (default 3100)');
     console.log('  cocapn whoami       Print self-description');
     console.log('  cocapn help         Show this help');
@@ -587,6 +590,8 @@ async function main(): Promise<void> {
     const port = (parseInt(args.values.port, 10) || config.port) ?? 3100;
     const hub = a2a ?? (a2aSecret ? new A2AHub(soul.name, `http://localhost:${port}`, a2aSecret) : undefined);
     startWebServer(port, llm, memory, awareness, soul, hub);
+  } else if (args.values.mcp) {
+    startMcpServer(repoDir, llm);
   } else {
     await terminalChat(llm, memory, awareness, systemPrompt, soul, pluginLoader, knowledge, a2a);
   }
