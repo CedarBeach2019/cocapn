@@ -117,6 +117,7 @@ import { createWebhooksCommand } from "./commands/webhooks.js";
 import { createNotifyCommand } from "./commands/notify.js";
 import { createOnboardCommand } from "./commands/onboard.js";
 import { createMobileCommand } from "./commands/mobile.js";
+import { createAgentsCommand } from "./commands/agents.js";
 
 const VERSION = "0.1.0";
 
@@ -223,6 +224,9 @@ export function createCLI(): Command {
 
   // Mobile commands
   program.addCommand(createMobileCommand());
+
+  // Agent management commands
+  program.addCommand(createAgentsCommand());
 
   return program;
 }
