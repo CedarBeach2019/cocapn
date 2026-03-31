@@ -1352,3 +1352,112 @@ describe('Theme CSS Generation', () => {
     expect(css).toContain('}');
   });
 });
+
+// ─── A2A Tests ────────────────────────────────────────────────────────────────
+
+import * as a2aMod from '../src/a2a.ts';
+
+const { A2AHub } = a2aMod;
+
+describe('A2A', () => {
+  it('creates a hub with name, url, and secret', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', 'secret123');
+    expect(hub.getPeers()).toEqual([]);
+  });
+
+  it('authenticates with correct secret', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', 'secret123');
+    expect(hub.authenticate('secret123')).toBe(true);
+    expect(hub.authenticate('wrong')).toBe(false);
+    expect(hub.authenticate(undefined)).toBe(false);
+  });
+
+  it('allows all requests when no secret is set', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', '');
+    expect(hub.authenticate(undefined)).toBe(true);
+    expect(hub.authenticate('anything')).toBe(true);
+  });
+
+  it('adds a peer from handshake', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', '');
+    const peer = hub.addPeer({
+      id: 'bob', name: 'Bob', url: 'http://localhost:3101',
+      capabilities: ['chat', 'knowledge-share'],
+    });
+    expect(peer.name).toBe('Bob');
+    expect(peer.id).toBe('bob');
+    expect(hub.getPeers()).toHaveLength(1);
+  });
+
+  it('removes a peer', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', '');
+    hub.addPeer({ id: 'bob', name: 'Bob', url: 'http://localhost:3101', capabilities: [] });
+    expect(hub.removePeer('bob')).toBe(true);
+    expect(hub.getPeers()).toHaveLength(0);
+    expect(hub.removePeer('bob')).toBe(false);
+  });
+
+  it('gets a specific peer by id', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', '');
+    hub.addPeer({ id: 'bob', name: 'Bob', url: 'http://localhost:3101', capabilities: ['chat'] });
+    const peer = hub.getPeer('bob');
+    expect(peer?.name).toBe('Bob');
+    expect(hub.getPeer('unknown')).toBeUndefined();
+  });
+
+  it('generates visitor prompt when peers exist', () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', '');
+    expect(hub.visitorPrompt()).toBe('');
+    hub.addPeer({ id: 'bob', name: 'Bob', url: 'http://localhost:3101', capabilities: [] });
+    const prompt = hub.visitorPrompt();
+    expect(prompt).toContain('Visiting Agents');
+    expect(prompt).toContain('Bob');
+    expect(prompt).toContain("don't share private facts");
+  });
+
+  it('fails to send message to unknown peer', async () => {
+    const hub = new A2AHub('Alice', 'http://localhost:3100', '');
+    const res = await hub.sendMessage('unknown', 'hello', 'greeting');
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('Unknown peer');
+  });
+
+  it('loads secret from environment variable', () => {
+    process.env.COCAPN_A2A_SECRET = 'env-secret';
+    const secret = A2AHub.loadSecret('/nonexistent');
+    expect(secret).toBe('env-secret');
+    delete process.env.COCAPN_A2A_SECRET;
+  });
+
+  it('loads secret from file', () => {
+    const dir = join(tmpdir(), `cocapn-a2a-${uid()}`);
+    mkdirSync(join(dir, 'cocapn'), { recursive: true });
+    writeFileSync(join(dir, 'cocapn', 'a2a-secret.json'), JSON.stringify({ secret: 'file-secret' }));
+    const secret = A2AHub.loadSecret(dir);
+    expect(secret).toBe('file-secret');
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('A2A soul prompt', () => {
+  it('builds A2A-aware system prompt', () => {
+    const prompt = soulMod.buildA2ASystemPrompt(
+      { name: 'Alice', tone: 'curious', model: 'deepseek', body: 'I help.' },
+      'Bob',
+      'http://localhost:3101',
+    );
+    expect(prompt).toContain('You are Alice');
+    expect(prompt).toContain('Bob');
+    expect(prompt).toContain('http://localhost:3101');
+    expect(prompt).toContain("don't share private facts");
+  });
+
+  it('works without URL', () => {
+    const prompt = soulMod.buildA2ASystemPrompt(
+      { name: 'Alice', tone: 'curious', model: 'deepseek', body: 'I help.' },
+      'Bob',
+    );
+    expect(prompt).toContain('Bob');
+    expect(prompt).not.toContain('from undefined');
+  });
+});
