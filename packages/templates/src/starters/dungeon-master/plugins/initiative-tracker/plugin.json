@@ -1,0 +1,74 @@
+{
+  "name": "initiative-tracker",
+  "version": "1.0.0",
+  "description": "Combat initiative and turn order management with automatic sorting, HP tracking, condition management, round counting, and death save tracking. Maintains the full state of an active combat encounter so the DM can focus on running the fight instead of managing a spreadsheet.",
+  "author": "Cocapn",
+  "commands": [
+    {
+      "name": "init:start",
+      "description": "Start a new combat encounter by rolling initiative for all participants",
+      "args": ["participants"],
+      "example": "init:start Thorin +3, Lyra +4, Brother Cedric +1, Whisper +5, 4x Goblin +2, 1x Goblin Boss +3"
+    },
+    {
+      "name": "init:next",
+      "description": "Advance to the next turn in initiative order",
+      "args": [],
+      "example": "init:next"
+    },
+    {
+      "name": "init:current",
+      "description": "Show the current initiative order and whose turn it is",
+      "args": [],
+      "example": "init:current"
+    },
+    {
+      "name": "init:hp",
+      "description": "Set or modify a creature's hit points",
+      "args": ["name", "operation", "amount"],
+      "example": "init:hp Goblin Boss -14"
+    },
+    {
+      "name": "init:condition",
+      "description": "Add or remove a condition on a creature",
+      "args": ["name", "condition", "duration?"],
+      "example": "init:condition Thorin poisoned 3 rounds"
+    },
+    {
+      "name": "init:add",
+      "description": "Add a new creature to the initiative order mid-combat",
+      "args": ["name", "initiative", "hp"],
+      "example": "init:add Reinforcement Orc 12 15"
+    },
+    {
+      "name": "init:remove",
+      "description": "Remove a creature from the initiative order",
+      "args": ["name"],
+      "example": "init:remove Goblin 3"
+    },
+    {
+      "name": "init:end",
+      "description": "End the current combat encounter and log summary",
+      "args": [],
+      "example": "init:end"
+    }
+  ],
+  "permissions": [
+    "brain:read",
+    "brain:write:facts",
+    "brain:write:memories"
+  ],
+  "config": {
+    "autoAdvance": true,
+    "trackDeathSaves": true,
+    "defaultConditions": [
+      "Blinded", "Charmed", "Deafened", "Exhaustion", "Frightened",
+      "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified",
+      "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"
+    ],
+    "conditionDurationTracking": true,
+    "roundCounting": true,
+    "encounterLogging": true,
+    "memoryNamespace": "combat"
+  }
+}

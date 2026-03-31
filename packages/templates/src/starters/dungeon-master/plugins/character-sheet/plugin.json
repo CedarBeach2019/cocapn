@@ -1,0 +1,95 @@
+{
+  "name": "character-sheet",
+  "version": "1.0.0",
+  "description": "Persistent character sheet management for player characters and important NPCs. Tracks ability scores, HP, AC, speed, class features, spell slots, inventory, gold, experience, and level progression. Provides quick lookups during play so the DM always has the numbers at hand.",
+  "author": "Cocapn",
+  "commands": [
+    {
+      "name": "char:create",
+      "description": "Create a new character sheet with full stats",
+      "args": ["name", "race", "class", "level", "abilityScores"],
+      "example": "char:create Thorin Dwarf Fighter 5 STR:18 DEX:12 CON:16 INT:8 WIS:10 CHA:14"
+    },
+    {
+      "name": "char:show",
+      "description": "Display a character's current sheet with all stats and resources",
+      "args": ["name"],
+      "example": "char:show Thorin"
+    },
+    {
+      "name": "char:update",
+      "description": "Update a specific field on a character sheet",
+      "args": ["name", "field", "value"],
+      "example": "char:update Thorin hp 38/45"
+    },
+    {
+      "name": "char:spellslots",
+      "description": "View or modify a character's spell slot usage",
+      "args": ["name", "level", "operation?"],
+      "example": "char:spellslots Lyra 3 use"
+    },
+    {
+      "name": "char:inventory",
+      "description": "Add, remove, or list items in a character's inventory",
+      "args": ["name", "operation", "item?"],
+      "example": "char:inventory Thorin add Potion of Healing"
+    },
+    {
+      "name": "char:levelup",
+      "description": "Level up a character with new HP, features, and spell slots",
+      "args": ["name"],
+      "example": "char:levelup Thorin"
+    },
+    {
+      "name": "char:list",
+      "description": "List all tracked characters with basic info",
+      "args": [],
+      "example": "char:list"
+    },
+    {
+      "name": "char:rest",
+      "description": "Apply a short or long rest to restore resources",
+      "args": ["name", "type"],
+      "example": "char:rest Thorin long"
+    }
+  ],
+  "permissions": [
+    "brain:read",
+    "brain:write:facts",
+    "brain:write:memories"
+  ],
+  "config": {
+    "trackedFields": {
+      "identity": ["name", "race", "class", "subclass", "level", "background", "alignment", "experience"],
+      "abilities": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"],
+      "combat": ["hp", "maxHp", "tempHp", "ac", "initiative", "speed", "hitDice"],
+      "saves": ["strSave", "dexSave", "conSave", "intSave", "wisSave", "chaSave"],
+      "skills": "All 18 skills with proficiency tracking",
+      "resources": ["spellSlots", "ki", "rage", "sneakAttack", "layOnHands", "channelDivinity", "actionSurge", "bardicInspiration"],
+      "inventory": ["items", "attuned", "gold", "silver", "copper", "electrum", "platinum"],
+      "deathSaves": ["successes", "failures"]
+    },
+    "autoCalculate": {
+      "proficiencyBonus": true,
+      "abilityModifiers": true,
+      "passiveScores": true,
+      "carryCapacity": true,
+      "encumbrance": false
+    },
+    "levelUpDefaults": {
+      "hpRoll": "Average (rounded up)",
+      "proficiencyBonus": true,
+      "asiAtLevels": [4, 8, 12, 16, 19],
+      "featOption": true
+    },
+    "shortRest": {
+      "restores": ["hitDice spending for HP recovery", "warlock spell slots", "fighter Second Wind", "monk Ki"],
+      "duration": "1 hour (varies)"
+    },
+    "longRest": {
+      "restores": ["all HP", "all spell slots", "all class resources", "half hit dice (min 1)", "death saves reset"],
+      "duration": "8 hours"
+    },
+    "memoryNamespace": "characters"
+  }
+}

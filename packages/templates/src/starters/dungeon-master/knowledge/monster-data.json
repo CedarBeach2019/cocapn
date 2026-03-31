@@ -1,0 +1,607 @@
+{
+  "monsters": [
+    {
+      "name": "Goblin",
+      "cr": "1/4",
+      "xp": 50,
+      "hp": 7,
+      "ac": 15,
+      "speed": "30 ft",
+      "str": 8,
+      "dex": 14,
+      "con": 10,
+      "int": 10,
+      "wis": 8,
+      "cha": 8,
+      "type": "Humanoid",
+      "size": "Small",
+      "alignment": "Chaotic Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Low",
+      "tactics": "Uses Nimble Escape to disengage or hide as a bonus action. Attacks from ambush, retreats when outnumbered. Fights in groups of 4-8.",
+      "attacks": [
+        {
+          "name": "Scimitar",
+          "type": "melee",
+          "hit": "+4",
+          "damage": "1d6 + 2 slashing"
+        },
+        {
+          "name": "Shortbow",
+          "type": "ranged",
+          "hit": "+4",
+          "damage": "1d6 + 2 piercing",
+          "range": "80/320 ft"
+        }
+      ],
+      "specialAbilities": ["Nimble Escape: Disengage or Hide as bonus action"]
+    },
+    {
+      "name": "Skeleton",
+      "cr": "1/4",
+      "xp": 50,
+      "hp": 13,
+      "ac": 13,
+      "speed": "30 ft",
+      "str": 10,
+      "dex": 14,
+      "con": 15,
+      "int": 6,
+      "wis": 8,
+      "cha": 5,
+      "type": "Undead",
+      "size": "Medium",
+      "alignment": "Lawful Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Low",
+      "tactics": "Mindless undead, follows last order. Ranged skeletons stay at distance; melee skeletons rush in. Vulnerable to bludgeoning.",
+      "vulnerabilities": ["Bludgeoning"],
+      "immunities": ["Poison"],
+      "attacks": [
+        {
+          "name": "Shortsword",
+          "type": "melee",
+          "hit": "+4",
+          "damage": "1d6 + 2 piercing"
+        },
+        {
+          "name": "Shortbow",
+          "type": "ranged",
+          "hit": "+4",
+          "damage": "1d6 + 2 piercing",
+          "range": "80/320 ft"
+        }
+      ],
+      "specialAbilities": []
+    },
+    {
+      "name": "Zombie",
+      "cr": "1/4",
+      "xp": 50,
+      "hp": 22,
+      "ac": 8,
+      "speed": "20 ft",
+      "str": 13,
+      "dex": 6,
+      "con": 16,
+      "int": 3,
+      "wis": 6,
+      "cha": 5,
+      "type": "Undead",
+      "size": "Medium",
+      "alignment": "Neutral Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Low",
+      "tactics": "Shambling, relentless. Undead Fortitude keeps them standing. Slow but durable — they absorb hits that would kill living creatures.",
+      "immunities": ["Poison"],
+      "attacks": [
+        {
+          "name": "Slam",
+          "type": "melee",
+          "hit": "+3",
+          "damage": "1d6 + 1 bludgeoning"
+        }
+      ],
+      "specialAbilities": ["Undead Fortitude: On dropping to 0 HP, Con save DC 5 + damage taken to drop to 1 HP instead. Fails on radiant/critical"]
+    },
+    {
+      "name": "Orc",
+      "cr": "1/2",
+      "xp": 100,
+      "hp": 15,
+      "ac": 13,
+      "speed": "30 ft",
+      "str": 16,
+      "dex": 12,
+      "con": 16,
+      "int": 7,
+      "wis": 11,
+      "cha": 10,
+      "type": "Humanoid",
+      "size": "Medium",
+      "alignment": "Chaotic Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Low",
+      "tactics": "Aggressive — charges closest enemy using Aggressive trait to close distance. Prefers melee. Retreats only when leader is killed.",
+      "attacks": [
+        {
+          "name": "Greataxe",
+          "type": "melee",
+          "hit": "+5",
+          "damage": "1d12 + 3 slashing"
+        },
+        {
+          "name": "Javelin",
+          "type": "ranged",
+          "hit": "+5",
+          "damage": "1d6 + 3 piercing",
+          "range": "30/120 ft"
+        }
+      ],
+      "specialAbilities": ["Aggressive: Bonus action to move up to speed toward hostile creature"]
+    },
+    {
+      "name": "Bugbear",
+      "cr": 1,
+      "xp": 200,
+      "hp": 27,
+      "ac": 16,
+      "speed": "30 ft",
+      "str": 15,
+      "dex": 14,
+      "con": 13,
+      "int": 8,
+      "wis": 11,
+      "cha": 9,
+      "type": "Humanoid",
+      "size": "Medium",
+      "alignment": "Chaotic Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Medium",
+      "tactics": "Ambush predator. Surprise attack deals extra 2d6 damage. Uses Stealth to set up first-strike advantage. Leads goblin ambushes.",
+      "attacks": [
+        {
+          "name": "Morningstar",
+          "type": "melee",
+          "hit": "+4",
+          "damage": "2d8 + 2 piercing (reach 5 ft)"
+        }
+      ],
+      "specialAbilities": ["Surprise Attack: +2d6 damage on first hit against surprised creature", "Brute: Melee weapons use d8 instead of d6 for damage"]
+    },
+    {
+      "name": "Owlbear",
+      "cr": 3,
+      "xp": 700,
+      "hp": 59,
+      "ac": 13,
+      "speed": "40 ft",
+      "str": 20,
+      "dex": 12,
+      "con": 17,
+      "int": 3,
+      "wis": 12,
+      "cha": 7,
+      "type": "Monstrosity",
+      "size": "Large",
+      "alignment": "Unaligned",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Medium",
+      "tactics": "Territorial and aggressive. Multiattack with beak and claws. Charges nearest threat. Will fight to the death defending young.",
+      "attacks": [
+        {
+          "name": "Multiattack",
+          "type": "melee",
+          "hit": null,
+          "damage": "Beak + Claws (two attacks)"
+        },
+        {
+          "name": "Beak",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "1d10 + 5 piercing"
+        },
+        {
+          "name": "Claws",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "2d8 + 5 slashing"
+        }
+      ],
+      "specialAbilities": []
+    },
+    {
+      "name": "Troll",
+      "cr": 5,
+      "xp": 1,800,
+      "hp": 84,
+      "ac": 15,
+      "speed": "30 ft",
+      "str": 18,
+      "dex": 13,
+      "con": 20,
+      "int": 7,
+      "wis": 9,
+      "cha": 7,
+      "type": "Giant",
+      "size": "Large",
+      "alignment": "Chaotic Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Hard",
+      "tactics": "Relentless brawler. Regenerates 10 HP per turn. Multiattack with claws and bite. Fools rush in without fire or acid — trolls regenerate from anything else.",
+      "vulnerabilities": [],
+      "tacticsKey": "Fire or acid stops regeneration. Without these, trolls are nearly unkillable.",
+      "attacks": [
+        {
+          "name": "Multiattack",
+          "type": "melee",
+          "hit": null,
+          "damage": "3 attacks: claws, claws, bite"
+        },
+        {
+          "name": "Claw",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "2d6 + 4 slashing"
+        },
+        {
+          "name": "Bite",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "1d6 + 4 piercing"
+        }
+      ],
+      "specialAbilities": ["Regeneration: Regains 10 HP at start of turn. Does not regenerate if takes fire/acid damage. Dies only if starts turn with 0 HP and can't regenerate."]
+    },
+    {
+      "name": "Young Green Dragon",
+      "cr": 8,
+      "xp": 3,900,
+      "hp": 136,
+      "ac": 18,
+      "speed": "40 ft, fly 80 ft, swim 40 ft",
+      "str": 19,
+      "dex": 12,
+      "con": 17,
+      "int": 16,
+      "wis": 13,
+      "cha": 15,
+      "type": "Dragon",
+      "size": "Large",
+      "alignment": "Lawful Evil",
+      "senses": "Blindsight 30 ft, Darkvision 120 ft",
+      "challenge": "Deadly",
+      "tactics": "Intelligent, deceptive, and patient. Prefers to negotiate from advantage before attacking. Uses breath weapon on clustered groups. Retreats if outmatched to plan revenge.",
+      "immunities": ["Poison"],
+      "attacks": [
+        {
+          "name": "Multiattack",
+          "type": "melee",
+          "hit": null,
+          "damage": "3 attacks: bite, claws (x2)"
+        },
+        {
+          "name": "Bite",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "2d10 + 4 piercing"
+        },
+        {
+          "name": "Claw",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "2d6 + 4 slashing"
+        },
+        {
+          "name": "Poison Breath",
+          "type": "breath",
+          "hit": "DC 14 Con save",
+          "damage": "12d6 poison (half on save)",
+          "aoe": "30-foot cone"
+        }
+      ],
+      "specialAbilities": ["Amphibious: Can breathe air and water", "Poison Breath: Recharge 5-6"]
+    },
+    {
+      "name": "Mind Flayer",
+      "cr": 7,
+      "xp": 2,900,
+      "hp": 71,
+      "ac": 15,
+      "speed": "30 ft",
+      "str": 11,
+      "dex": 12,
+      "con": 12,
+      "int": 19,
+      "wis": 17,
+      "cha": 17,
+      "type": "Aberration",
+      "size": "Medium",
+      "alignment": "Lawful Evil",
+      "senses": "Darkvision 120 ft",
+      "challenge": "Hard",
+      "tactics": "Uses Mind Blast to stun groups, then extracts brains from stunned targets. Leads with psionics, uses tentacles on isolated targets. Commands thralls intelligently.",
+      "resistances": [],
+      "attacks": [
+        {
+          "name": "Tentacles",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "1d8 + 4 psychic (grapples on hit, target stunned if already grappled and hit again)"
+        },
+        {
+          "name": "Extract Brain",
+          "type": "melee",
+          "hit": "+7",
+          "damage": "10d10 psychic (target must be grappled, incapacitated, or stunned; kills on reducing to 0)"
+        },
+        {
+          "name": "Mind Blast",
+          "type": "psionic",
+          "hit": "DC 15 Int save",
+          "damage": "4d8 psychic (stunned on fail, half on save)",
+          "aoe": "60-foot cone"
+        }
+      ],
+      "specialAbilities": ["Innate Spellcasting: At will — detect thoughts, levitate", "Mind Blast: Recharge 5-6"]
+    },
+    {
+      "name": "Beholder",
+      "cr": 13,
+      "xp": 10,000,
+      "hp": 180,
+      "ac": 18,
+      "speed": "0 ft, fly 20 ft (hover)",
+      "str": 10,
+      "dex": 14,
+      "con": 18,
+      "int": 17,
+      "wis": 15,
+      "cha": 17,
+      "type": "Aberration",
+      "size": "Large",
+      "alignment": "Lawful Evil",
+      "senses": "Darkvision 120 ft",
+      "challenge": "Deadly",
+      "tactics": "Paranoid, territorial, intelligent. Uses Antimagic Cone to shut down spellcasters while using eye rays on others. Targets healers and casters first. Creates lairs with kill zones.",
+      "attacks": [
+        {
+          "name": "Bite",
+          "type": "melee",
+          "hit": "+5",
+          "damage": "4d6 piercing"
+        },
+        {
+          "name": "Eye Rays",
+          "type": "ranged",
+          "hit": "Random 1-10, each targets one creature within 120 ft",
+          "damage": "Varies by ray (charm, paralyze, fear, slow, enervation, telekinetic, sleep, petrification, disintegration, death)"
+        }
+      ],
+      "specialAbilities": ["Antimagic Cone: 150-foot cone suppresses magic", "Eye Rays: 3 random rays per turn, no repeat", "Legendary Actions: Eye Ray (cost 1), 3/round"]
+    },
+    {
+      "name": "Adult Red Dragon",
+      "cr": 17,
+      "xp": 18,000,
+      "hp": 256,
+      "ac": 19,
+      "speed": "40 ft, climb 40 ft, fly 80 ft",
+      "str": 27,
+      "dex": 10,
+      "con": 25,
+      "int": 16,
+      "wis": 13,
+      "cha": 21,
+      "type": "Dragon",
+      "size": "Huge",
+      "alignment": "Chaotic Evil",
+      "senses": "Blindsight 60 ft, Darkvision 120 ft",
+      "challenge": "Deadly",
+      "tactics": "The most vain and destructive of chromatic dragons. Opens with breath weapon on the largest group. Uses Frightful Presence to scatter. Picks off isolated targets with legendary actions. Prefers to fight in its lair where it has lair actions.",
+      "immunities": ["Fire"],
+      "attacks": [
+        {
+          "name": "Multiattack",
+          "type": "melee",
+          "hit": null,
+          "damage": "3 attacks: bite, claws (x2)"
+        },
+        {
+          "name": "Bite",
+          "type": "melee",
+          "hit": "+14",
+          "damage": "2d10 + 8 piercing plus 2d6 fire"
+        },
+        {
+          "name": "Claw",
+          "type": "melee",
+          "hit": "+14",
+          "damage": "2d6 + 8 slashing"
+        },
+        {
+          "name": "Tail",
+          "type": "melee",
+          "hit": "+14",
+          "damage": "2d8 + 8 bludgeoning"
+        },
+        {
+          "name": "Fire Breath",
+          "type": "breath",
+          "hit": "DC 21 Dex save",
+          "damage": "18d6 fire (half on save)",
+          "aoe": "60-foot cone"
+        }
+      ],
+      "specialAbilities": ["Legendary Resistance: 3/day, auto-fail a save", "Frightful Presence: DC 19 Wis save or frightened for 1 minute", "Legendary Actions: Detect, Tail Attack, Wing Attack (cost 2)"]
+    },
+    {
+      "name": "Lich",
+      "cr": 21,
+      "xp": 33,000,
+      "hp": 135,
+      "ac": 17,
+      "speed": "30 ft",
+      "str": 11,
+      "dex": 16,
+      "con": 16,
+      "int": 20,
+      "wis": 14,
+      "cha": 16,
+      "type": "Undead",
+      "size": "Medium",
+      "alignment": "Chaotic Evil",
+      "senses": "Truesight 120 ft",
+      "challenge": "Deadly",
+      "tactics": "Master planner who never engages directly without preparation. Leads with crowd control, uses legendary actions to disrupt casters. Phylactery resurrection means the party must find and destroy it to win permanently.",
+      "resistances": ["Cold, Lightning"],
+      "immunities": ["Poison, Psychic; Bludgeoning/Piercing/Slashing from nonmagical weapons"],
+      "attacks": [
+        {
+          "name": "Paralyzing Touch",
+          "type": "melee",
+          "hit": "+9",
+          "damage": "3d6 cold (DC 15 Con save or paralyzed for 1 minute)"
+        }
+      ],
+      "specialAbilities": ["Legendary Resistance: 3/day", "Spellcasting: 9th-level caster, Spell save DC 20", "Rejuvenation: Returns 1d10 days after destruction if phylactery intact", "Legendary Actions: Cantrip, Paralyzing Touch (cost 2), Frightening Gaze (cost 2), Disrupt Life (cost 3)"]
+    },
+    {
+      "name": "Bandit",
+      "cr": "1/8",
+      "xp": 25,
+      "hp": 11,
+      "ac": 12,
+      "speed": "30 ft",
+      "str": 11,
+      "dex": 12,
+      "con": 12,
+      "int": 10,
+      "wis": 10,
+      "cha": 10,
+      "type": "Humanoid",
+      "size": "Medium",
+      "alignment": "Any Non-Lawful",
+      "senses": "None",
+      "challenge": "Low",
+      "tactics": "Attacks from ambush on roads. Prefers to intimidate and rob rather than kill. Retreats if half their number fall.",
+      "attacks": [
+        {
+          "name": "Scimitar",
+          "type": "melee",
+          "hit": "+3",
+          "damage": "1d6 + 1 slashing"
+        },
+        {
+          "name": "Light Crossbow",
+          "type": "ranged",
+          "hit": "+3",
+          "damage": "1d8 + 1 piercing",
+          "range": "80/320 ft"
+        }
+      ],
+      "specialAbilities": []
+    },
+    {
+      "name": "Hobgoblin",
+      "cr": 1,
+      "xp": 200,
+      "hp": 11,
+      "ac": 18,
+      "speed": "30 ft",
+      "str": 13,
+      "dex": 12,
+      "con": 12,
+      "int": 10,
+      "wis": 10,
+      "cha": 9,
+      "type": "Humanoid",
+      "size": "Medium",
+      "alignment": "Lawful Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Medium",
+      "tactics": "Disciplined military tactics. Uses Martial Advantage (+2d6) when ally is adjacent to target. Fights in formation. Leaders direct lower-ranking troops.",
+      "attacks": [
+        {
+          "name": "Longsword",
+          "type": "melee",
+          "hit": "+3",
+          "damage": "1d8 + 1 slashing (versatile 1d10)"
+        },
+        {
+          "name": "Longbow",
+          "type": "ranged",
+          "hit": "+3",
+          "damage": "1d8 + 1 piercing",
+          "range": "150/600 ft"
+        }
+      ],
+      "specialAbilities": ["Martial Advantage: +2d6 damage when ally is within 5 ft of target and ally isn't incapacitated"]
+    },
+    {
+      "name": "Worg",
+      "cr": "1/2",
+      "xp": 100,
+      "hp": 26,
+      "ac": 13,
+      "speed": "50 ft",
+      "str": 16,
+      "dex": 13,
+      "con": 13,
+      "int": 7,
+      "wis": 11,
+      "cha": 8,
+      "type": "Monstrosity",
+      "size": "Large",
+      "alignment": "Neutral Evil",
+      "senses": "Darkvision 60 ft",
+      "challenge": "Low",
+      "tactics": "Goblin cavalry mount. Uses speed to flank and knock targets prone. Often ridden by goblins who attack from its back.",
+      "attacks": [
+        {
+          "name": "Bite",
+          "type": "melee",
+          "hit": "+5",
+          "damage": "2d6 + 3 piercing (target prone if Large or smaller, DC 13 Str save)"
+        }
+      ],
+      "specialAbilities": ["Keen Hearing and Smell: Advantage on Perception checks using hearing or smell"]
+    },
+    {
+      "name": "Gelatinous Cube",
+      "cr": 2,
+      "xp": 450,
+      "hp": 84,
+      "ac": 6,
+      "speed": "15 ft",
+      "str": 14,
+      "dex": 3,
+      "con": 20,
+      "int": 1,
+      "wis": 6,
+      "cha": 1,
+      "type": "Ooze",
+      "size": "Large",
+      "alignment": "Unaligned",
+      "senses": "Blindsight 60 ft (blind beyond)",
+      "challenge": "Medium",
+      "tactics": "Nearly invisible ambush predator in dungeons. Engulfs characters who walk into it. Acid damage slowly dissolves equipment and flesh.",
+      "immunities": ["Blinded, Charmed, Deafened, Exhaustion, Frightened, Prone"],
+      "attacks": [
+        {
+          "name": "Pseudopod",
+          "type": "melee",
+          "hit": "+4",
+          "damage": "1d6 + 2 acid plus 1d4 acid (if engulfed)"
+        }
+      ],
+      "specialAbilities": ["Engulf: DC 12 Dex save or engulfed, restrained, take 3d6 acid per turn", "Transparent: DC 15 Perception to notice before walking into it", "Ooze Cube: Engulfed creatures are blinded and restrained"]
+    }
+  ],
+  "metadata": {
+    "source": "D&D 5e System Reference Document (SRD)",
+    "disclaimer": "Monster stats are summaries for quick reference. Consult the full SRD or Monster Manual for complete stat blocks and lore. D&D and its rules are trademarks of Wizards of the Coast.",
+    "lastUpdated": "2024-03-30",
+    "totalMonsters": 16
+  }
+}

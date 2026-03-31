@@ -1,0 +1,269 @@
+{
+  "items": {
+    "common": [
+      {
+        "name": "Potion of Healing",
+        "type": "Potion",
+        "rarity": "Common",
+        "attunement": false,
+        "description": "A character who drinks the magical red fluid in this potion regains 2d4 + 2 hit points. Drinking or administering a potion takes an action.",
+        "weight": "0.5 lb",
+        "value": "50 gp"
+      },
+      {
+        "name": "Potion of Greater Healing",
+        "type": "Potion",
+        "rarity": "Uncommon",
+        "attunement": false,
+        "description": "A character who drinks the magical red fluid in this potion regains 4d4 + 4 hit points. Drinking or administering a potion takes an action.",
+        "weight": "0.5 lb",
+        "value": "100 gp"
+      },
+      {
+        "name": "Potion of Superior Healing",
+        "type": "Potion",
+        "rarity": "Rare",
+        "attunement": false,
+        "description": "A character who drinks the magical red fluid in this potion regains 8d4 + 8 hit points.",
+        "weight": "0.5 lb",
+        "value": "500 gp"
+      },
+      {
+        "name": "Potion of Supreme Healing",
+        "type": "Potion",
+        "rarity": "Very Rare",
+        "attunement": false,
+        "description": "A character who drinks the magical red fluid in this potion regains 10d4 + 20 hit points.",
+        "weight": "0.5 lb",
+        "value": "2,500 gp"
+      },
+      {
+        "name": "Spell Scroll (1st Level)",
+        "type": "Scroll",
+        "rarity": "Common",
+        "attunement": false,
+        "description": "A spell scroll bears the words of a single spell, written as a mystical cipher. If the spell is on your class's spell list, you can use an action to read the scroll and cast its spell without providing any material components. The spell uses your spell save DC and spellcasting ability modifier. If the spell is not on your class's spell list, you must succeed on a DC 13 ability check using Intelligence to cast it. On a fail, the scroll is consumed with no effect.",
+        "value": "50 gp"
+      },
+      {
+        "name": "Potion of Water Breathing",
+        "type": "Potion",
+        "rarity": "Uncommon",
+        "attunement": false,
+        "description": "You can breathe underwater for 1 hour after drinking this potion. The liquid is cloudy and smells of sea spray.",
+        "weight": "0.5 lb",
+        "value": "150 gp"
+      }
+    ],
+    "uncommon": [
+      {
+        "name": "Cloak of Elvenkind",
+        "type": "Wondrous Item",
+        "rarity": "Uncommon",
+        "attunement": true,
+        "description": "While you wear this cloak with its hood up, Wisdom (Perception) checks made to see you have disadvantage, and you have advantage on Dexterity (Stealth) checks made to hide, as the cloak's color shifts to camouflage you. Pulling the hood up or down requires an action.",
+        "weight": "1 lb",
+        "value": "500 gp"
+      },
+      {
+        "name": "Boots of Elvenkind",
+        "type": "Wondrous Item",
+        "rarity": "Uncommon",
+        "attunement": false,
+        "description": "While you wear these light shoes, your footsteps make no sound, regardless of the surface you are moving across. You also have advantage on Dexterity (Stealth) checks that rely on moving silently.",
+        "weight": "1 lb",
+        "value": "400 gp"
+      },
+      {
+        "name": "Gauntlets of Ogre Power",
+        "type": "Wondrous Item",
+        "rarity": "Uncommon",
+        "attunement": true,
+        "description": "Your Strength score is 19 while you wear these gauntlets. They have no effect on you if your Strength is already 19 or higher.",
+        "weight": "2 lb",
+        "value": "500 gp"
+      },
+      {
+        "name": "Amulet of Health",
+        "type": "Wondrous Item",
+        "rarity": "Rare",
+        "attunement": true,
+        "description": "Your Constitution score is 19 while you wear this amulet. It has no effect on you if your Constitution is already 19 or higher.",
+        "weight": "1 lb",
+        "value": "2,500 gp"
+      },
+      {
+        "name": "Bag of Holding",
+        "type": "Wondrous Item",
+        "rarity": "Uncommon",
+        "attunement": false,
+        "description": "This bag has an interior space considerably larger than its outside dimensions, roughly 2 feet in diameter at the mouth and 4 feet deep. The bag can hold up to 500 pounds, not exceeding a volume of 64 cubic feet. The bag weighs 15 pounds, regardless of its contents. Retrieving an item from the bag requires an action. If the bag is overloaded, pierced, or torn, it ruptures and is destroyed, and its contents are scattered in the Astral Plane. If the bag is turned inside out, its contents spill forth, unharmed, but the bag must be put right before it can be used again.",
+        "weight": "15 lb",
+        "value": "500 gp"
+      },
+      {
+        "name": "+1 Weapon",
+        "type": "Weapon (any)",
+        "rarity": "Uncommon",
+        "attunement": true,
+        "description": "You have a +1 bonus to attack and damage rolls made with this magic weapon.",
+        "value": "500 gp"
+      },
+      {
+        "name": "+1 Shield",
+        "type": "Armor (shield)",
+        "rarity": "Uncommon",
+        "attunement": true,
+        "description": "While holding this shield, you have a +1 bonus to AC. This bonus is in addition to the shield's normal bonus to AC.",
+        "weight": "6 lb",
+        "value": "500 gp"
+      },
+      {
+        "name": "Goggles of Night",
+        "type": "Wondrous Item",
+        "rarity": "Uncommon",
+        "attunement": false,
+        "description": "While wearing these dark lenses, you have darkvision out to a range of 60 feet. If you already have darkvision, wearing the goggles increases its range by 60 feet.",
+        "weight": "0.5 lb",
+        "value": "400 gp"
+      }
+    ],
+    "rare": [
+      {
+        "name": "Flame Tongue",
+        "type": "Weapon (any sword)",
+        "rarity": "Rare",
+        "attunement": true,
+        "description": "You can use a bonus action to speak this magic sword's command word, causing flames to erupt from the blade. The flames shed bright light in a 40-foot radius and dim light for an additional 40 feet. While the sword is ablaze, it deals an extra 2d6 fire damage to any target it hits. The flames last until you use a bonus action to speak the command word again or until you drop or sheathe the sword.",
+        "weight": "3 lb",
+        "value": "5,000 gp"
+      },
+      {
+        "name": "Cloak of Displacement",
+        "type": "Wondrous Item",
+        "rarity": "Rare",
+        "attunement": true,
+        "description": "While you wear this cloak, it projects an illusion that makes you appear to be standing in a location near your actual position. Any creature that can see you has disadvantage on attack rolls against you. If you take damage, the property ceases to function until the start of your next turn. This property is suppressed while you are incapacitated, restrained, or otherwise unable to move.",
+        "weight": "1 lb",
+        "value": "4,000 gp"
+      },
+      {
+        "name": "Ring of Resistance",
+        "type": "Ring",
+        "rarity": "Rare",
+        "attunement": true,
+        "description": "You have resistance to one damage type while wearing this ring. The gem in the ring indicates the type (agate = acid, amethyst = force, etc.). The DM chooses or determines the damage type.",
+        "weight": "0.1 lb",
+        "value": "3,500 gp"
+      },
+      {
+        "name": "Wand of Magic Detection",
+        "type": "Wand",
+        "rarity": "Uncommon",
+        "attunement": false,
+        "description": "This wand has 3 charges. While holding it, you can expend 1 charge as an action to cast the detect magic spell from it. The wand regains 1d3 expended charges daily at dawn.",
+        "weight": "1 lb",
+        "value": "500 gp"
+      },
+      {
+        "name": "+2 Weapon",
+        "type": "Weapon (any)",
+        "rarity": "Rare",
+        "attunement": true,
+        "description": "You have a +2 bonus to attack and damage rolls made with this magic weapon.",
+        "value": "4,000 gp"
+      },
+      {
+        "name": "Winged Boots",
+        "type": "Wondrous Item",
+        "rarity": "Uncommon",
+        "attunement": true,
+        "description": "While you wear these boots, you can use an action to cast the fly spell on yourself. The spell lasts for 4 hours and requires no concentration. The boots can be used to fly for a total of 4 hours per day. The duration resets after a long rest.",
+        "weight": "1 lb",
+        "value": "500 gp"
+      }
+    ],
+    "veryRare": [
+      {
+        "name": "Scimitar of Speed",
+        "type": "Weapon (scimitar)",
+        "rarity": "Very Rare",
+        "attunement": true,
+        "description": "You gain a +2 bonus to attack and damage rolls made with this magic weapon. In addition, you can make one attack with it as a bonus action on each of your turns.",
+        "weight": "3 lb",
+        "value": "12,000 gp"
+      },
+      {
+        "name": "Cloak of Arachnida",
+        "type": "Wondrous Item",
+        "rarity": "Very Rare",
+        "attunement": true,
+        "description": "While wearing this cloak, you have resistance to poison damage, advantage on saving throws against being poisoned, and advantage on saving throws against being restrained. You can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check. You can use an action to cast the web spell (save DC 13). The web lasts for 1 hour. You can't use this property again until you finish a short or long rest.",
+        "weight": "1 lb",
+        "value": "10,000 gp"
+      },
+      {
+        "name": "Robe of the Archmagi",
+        "type": "Wondrous Item",
+        "rarity": "Legendary",
+        "attunement": "Sorcerer, Warlock, or Wizard only",
+        "description": "This elegant garment is made from white, gray, or black fabric and is adorned with silvery runes. You gain these benefits while wearing the robe: +5 bonus to AC, advantage on saving throws against spells and other magical effects, your spell save DC and spell attack bonus each increase by 2.",
+        "weight": "1 lb",
+        "value": "40,000 gp"
+      }
+    ],
+    "legendary": [
+      {
+        "name": "Vorpal Sword",
+        "type": "Weapon (any sword that deals slashing damage)",
+        "rarity": "Legendary",
+        "attunement": true,
+        "description": "You gain a +3 bonus to attack and damage rolls made with this magic weapon. In addition, the weapon ignores resistance to slashing damage. When you attack a creature that has at least one head with this weapon and roll a natural 20 on the attack roll, you cut off one of the creature's heads. The creature dies if it can't survive without the lost head. A creature is immune to this effect if it is immune to slashing damage, doesn't have or need a head, has legendary actions, or the DM decides that the creature is too big for its head to be cut off.",
+        "weight": "3 lb",
+        "value": "50,000 gp"
+      },
+      {
+        "name": "Staff of the Magi",
+        "type": "Staff",
+        "rarity": "Legendary",
+        "attunement": true,
+        "description": "This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls. While holding it, you gain a +2 bonus to Armor Class, spell save DC, and spell attack bonus. The staff has 50 charges and can be used to cast a variety of spells. It also absorbs spells targeted at the wielder, adding charges equal to the spell's level. If the staff reaches 50 charges through absorption, it erupts in a retributive strike (20-foot-radius, 8d6 force damage).",
+        "weight": "4 lb",
+        "value": "45,000 gp"
+      }
+    ]
+  },
+  "rarityTiers": {
+    "Common": {
+      "typicalValue": "50-100 gp",
+      "characterLevel": "1+",
+      "description": "Minor magical effects. Useful but not game-changing. Found in shops and as basic loot."
+    },
+    "Uncommon": {
+      "typicalValue": "100-500 gp",
+      "characterLevel": "1+",
+      "description": "Notable magical effects. +1 weapons and basic utility items. The workhorse tier for levels 1-8."
+    },
+    "Rare": {
+      "typicalValue": "500-5,000 gp",
+      "characterLevel": "5+",
+      "description": "Significant magical effects. +2 weapons, powerful defensive items. Campaign-defining finds for levels 5-12."
+    },
+    "Very Rare": {
+      "typicalValue": "5,000-25,000 gp",
+      "characterLevel": "11+",
+      "description": "Powerful magical effects. These items shape character builds and turn the tide of major battles."
+    },
+    "Legendary": {
+      "typicalValue": "25,000-100,000+ gp",
+      "characterLevel": "17+",
+      "description": "World-altering magical effects. Items of legend that define campaigns. Sought by kings and villains alike."
+    }
+  },
+  "metadata": {
+    "source": "D&D 5e System Reference Document (SRD)",
+    "disclaimer": "Item descriptions are summaries for quick reference. Consult the full SRD or Dungeon Master's Guide for complete rules and item tables. D&D and its rules are trademarks of Wizards of the Coast.",
+    "lastUpdated": "2024-03-30",
+    "totalItems": 24
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "name": "dice-roller",
+  "version": "1.0.0",
+  "description": "Polyhedral dice roller with full D&D notation support, advantage/disadvantage, critical hit detection, exploding dice, and roll history tracking. Handles any dice expression from a simple d20 to complex damage rolls like 8d6+3d8+5.",
+  "author": "Cocapn",
+  "commands": [
+    {
+      "name": "roll",
+      "description": "Roll dice using standard notation (NdN+N format)",
+      "args": ["expression"],
+      "example": "roll 2d20kh1+5 (advantage with +5 modifier)"
+    },
+    {
+      "name": "roll:attack",
+      "description": "Roll an attack with advantage/disadvantage support and automatic critical detection",
+      "args": ["modifier?", "advantage?"],
+      "example": "roll:attack +7 advantage"
+    },
+    {
+      "name": "roll:damage",
+      "description": "Roll damage dice, doubling on crits when flagged",
+      "args": ["expression", "critical?"],
+      "example": "roll:damage 2d6+3d8+5 critical"
+    },
+    {
+      "name": "roll:stats",
+      "description": "Roll a set of ability scores using 4d6 drop lowest",
+      "args": ["method?"],
+      "example": "roll:stats 4d6kh3"
+    },
+    {
+      "name": "roll:history",
+      "description": "Show recent roll history with timestamps",
+      "args": ["count?"],
+      "example": "roll:history 10"
+    },
+    {
+      "name": "roll:fate",
+      "description": "Roll a d20 and describe the narrative result",
+      "args": ["context?"],
+      "example": "roll:fate stealth check in the goblin camp"
+    }
+  ],
+  "permissions": [
+    "brain:read",
+    "brain:write:facts",
+    "brain:write:memories"
+  ],
+  "config": {
+    "defaultDie": "d20",
+    "maxDicePerRoll": 100,
+    "supportedDice": ["d4", "d6", "d8", "d10", "d12", "d20", "d100"],
+    "notation": {
+      "basic": "NdN (e.g., 2d6)",
+      "modifier": "NdN+M (e.g., 1d20+5)",
+      "keep": "NdNkhN (keep highest N), NdNklN (keep lowest N)",
+      "drop": "NdNdlN (drop lowest N), NdNdhN (drop highest N)",
+      "reroll": "NdNroN (reroll once on value <= N)",
+      "explode": "NdN! (explode on max value)",
+      "advantage": "2d20kh1 (roll twice, keep higher)",
+      "disadvantage": "2d20kl1 (roll twice, keep lower)"
+    },
+    "criticalHit": {
+      "onNatural": 20,
+      "damageRule": "double the dice (not modifiers)",
+      "description": "A natural 20 always hits and doubles the weapon's damage dice"
+    },
+    "historyLimit": 100,
+    "memoryNamespace": "rolls"
+  }
+}
