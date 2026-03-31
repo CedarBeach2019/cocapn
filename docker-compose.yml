@@ -1,21 +1,25 @@
 services:
+  # ── Production (sandbox) ────────────────────────────────────────────
+  # Uses the sandbox Dockerfile with alpine base, default soul, and
+  # persistent named volumes. See docker-sandbox/ for full docs.
   cocapn:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker-sandbox/Dockerfile
     container_name: cocapn
     restart: unless-stopped
     ports:
-      - "3100:3100"
-    volumes:
-      - ./brain:/app/brain
+      - "${COCAPN_PORT:-3100}:3100"
     env_file:
-      - .env
+      - docker-sandbox/.env
     environment:
-      - COCAPN_MODE=local
+      - COCAPN_MODE=${COCAPN_MODE:-private}
       - COCAPN_PORT=3100
-      - COCAPN_BRAIN_DIR=/app/brain
+      - COCAPN_BRAIN_DIR=/app/cocapn
       - DOCKER_CONTAINER=true
+      - NODE_ENV=production
+    volumes:
+      - cocapn-data:/app/cocapn
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:3100/health"]
       interval: 30s
@@ -23,6 +27,8 @@ services:
       start_period: 10s
       retries: 3
 
+  # ── Development ─────────────────────────────────────────────────────
+  # Hot-reloading dev container using the root Dockerfile builder stage.
   cocapn-dev:
     build:
       context: .
@@ -44,3 +50,7 @@ services:
       - DOCKER_CONTAINER=true
       - NODE_ENV=development
     command: ["npx", "nodemon", "--watch", "packages", "packages/cli/bin/cocapn.js", "start"]
+
+volumes:
+  cocapn-data:
+    driver: local

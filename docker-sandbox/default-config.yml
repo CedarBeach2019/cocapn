@@ -1,0 +1,47 @@
+# Cocapn Sandbox Configuration
+# Sensible defaults for Docker deployment
+
+soul: soul.md
+
+config:
+  mode: private
+  port: 3100
+  tunnel: null
+
+memory:
+  facts: memory/facts.json
+  procedures: memory/procedures
+  relationships: memory/relationships.json
+
+encryption:
+  publicKey: ""
+  recipients: []
+  encryptedPaths:
+    - "secrets/**"
+    - "*.secret.yml"
+
+sync:
+  interval: 300
+  memoryInterval: 60
+  autoCommit: true
+  autoPush: false
+
+vectorSearch:
+  enabled: true
+  provider: local
+  dimensions: 384
+  alpha: 0.6
+
+llm:
+  defaultModel: deepseek-chat
+  providers:
+    deepseek:
+      apiKey: ${DEEPSEEK_API_KEY}
+    openai:
+      apiKey: ${OPENAI_API_KEY}
+    anthropic:
+      apiKey: ${ANTHROPIC_API_KEY}
+  fallbackModels:
+    - gpt-4o
+    - claude-sonnet-4-20250514
+  timeout: 60000

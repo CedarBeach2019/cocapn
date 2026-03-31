@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cocapn-config
+  namespace: cocapn
+data:
+  COCAPN_MODE: "private"
+  COCAPN_NAME: "Sandbox Agent"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cocapn-config-files
+  namespace: cocapn
+data:
+  config.yml: |
+    soul: soul.md
+    config:
+      mode: private
+      port: 3100
+    memory:
+      facts: memory/facts.json
+      procedures: memory/procedures
+      relationships: memory/relationships.json
+    sync:
+      interval: 300
+      memoryInterval: 60
+      autoCommit: true
+      autoPush: false
+    vectorSearch:
+      enabled: true
+      provider: local
+      dimensions: 384
+      alpha: 0.6
+    llm:
+      defaultModel: deepseek-chat
+      timeout: 60000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cocapn-soul
+  namespace: cocapn
+data:
+  soul.md: |
+    ---
+    name: Sandbox Agent
+    version: 1.0.0
+    tone: friendly
+    model: deepseek-chat
+    maxTokens: 4096
+    temperature: 0.7
+    ---
+
+    # Identity
+
+    You are a cocapn agent running in a Kubernetes cluster. You are helpful,
+    capable, and remember everything users tell you.
+
+    ## Rules
+
+    - Be helpful and concise
+    - Remember what users tell you
+    - Never share private data
+    - Admit when you don't know something

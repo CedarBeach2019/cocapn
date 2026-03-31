@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  cocapn:
+    build:
+      context: ..
+      dockerfile: docker-sandbox/Dockerfile
+    container_name: cocapn-sandbox
+    restart: unless-stopped
+    ports:
+      - "${COCAPN_PORT:-3100}:3100"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - COCAPN_MODE=${COCAPN_MODE:-private}
+      - COCAPN_PORT=3100
+      - COCAPN_NAME=${COCAPN_NAME:-Sandbox Agent}
+      - COCAPN_BRAIN_DIR=/app/cocapn
+      - DOCKER_CONTAINER=true
+      - NODE_ENV=production
+    volumes:
+      - cocapn-data:/app/cocapn
+      # Optional: mount a custom soul.md to change personality at runtime
+      # - ./custom-soul.md:/app/cocapn/soul.md:ro
+      # Optional: mount a custom config
+      # - ./custom-config.yml:/app/cocapn/config.yml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  cocapn-data:
+    driver: local

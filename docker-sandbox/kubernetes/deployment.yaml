@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cocapn
+  namespace: cocapn
+  labels:
+    app: cocapn
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cocapn
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: cocapn
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: cocapn
+          image: ghcr.io/cedarbeach2019/cocapn:latest
+          ports:
+            - containerPort: 3100
+              name: http
+              protocol: TCP
+          env:
+            - name: COCAPN_PORT
+              value: "3100"
+            - name: COCAPN_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: cocapn-config
+                  key: COCAPN_MODE
+            - name: COCAPN_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cocapn-config
+                  key: COCAPN_NAME
+            - name: COCAPN_BRAIN_DIR
+              value: "/app/cocapn"
+            - name: DOCKER_CONTAINER
+              value: "true"
+            - name: NODE_ENV
+              value: "production"
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cocapn-secrets
+                  key: DEEPSEEK_API_KEY
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cocapn-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cocapn-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: brain
+              mountPath: /app/cocapn
+            - name: soul
+              mountPath: /app/cocapn/soul.md
+              subPath: soul.md
+              readOnly: true
+            - name: config
+              mountPath: /app/cocapn/config.yml
+              subPath: config.yml
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: brain
+          persistentVolumeClaim:
+            claimName: cocapn-brain
+        - name: soul
+          configMap:
+            name: cocapn-soul
+        - name: config
+          configMap:
+            name: cocapn-config-files
