@@ -93,14 +93,15 @@ describe('Memory', () => {
     expect(mem.messages.length).toBe(100);
   });
 
-  it('stores and retrieves facts', () => {
+  it('persists facts via file', () => {
     const mem = new Memory(testDir);
-    mem.setFact('user', 'Alice');
-    expect(mem.getFact('user')).toBe('Alice');
-    expect(mem.getFact('nope')).toBeUndefined();
+    mem.facts['user'] = 'Alice';
+    mem['save']();
+    expect(mem.facts['user']).toBe('Alice');
+    expect(mem.facts['nope']).toBeUndefined();
 
     const mem2 = new Memory(testDir);
-    expect(mem2.getFact('user')).toBe('Alice');
+    expect(mem2.facts['user']).toBe('Alice');
   });
 
   it('formats context', () => {
@@ -116,7 +117,8 @@ describe('Memory', () => {
 
   it('formats facts', () => {
     const mem = new Memory(testDir);
-    mem.setFact('name', 'Bob');
+    mem.facts['name'] = 'Bob';
+    mem['save']();
     expect(mem.formatFacts()).toContain('name: Bob');
   });
 
@@ -144,7 +146,8 @@ describe('Memory', () => {
   it('clears all data', () => {
     const mem = new Memory(testDir);
     mem.addMessage('user', 'Hello');
-    mem.setFact('key', 'value');
+    mem.facts['key'] = 'value';
+    mem['save']();
     mem.clear();
     expect(mem.messages).toEqual([]);
     expect(mem.facts).toEqual({});
@@ -159,7 +162,8 @@ describe('Memory', () => {
     mem.addMessage('user', 'I love TypeScript');
     mem.addMessage('assistant', 'TypeScript is great');
     mem.addMessage('user', 'What about Python?');
-    mem.setFact('language', 'TypeScript');
+    mem.facts['language'] = 'TypeScript';
+    mem['save']();
 
     const results = mem.search('typescript');
     expect(results.messages.length).toBe(2);

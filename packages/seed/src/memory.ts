@@ -62,16 +62,6 @@ export class Memory {
     this.save();
   }
 
-  /** Set a fact (flat KV store) */
-  setFact(key: string, value: string): void {
-    this.data.facts[key] = value;
-    this.save();
-  }
-
-  /** Get a fact */
-  getFact(key: string): string | undefined {
-    return this.data.facts[key];
-  }
 
   /** Format recent messages as LLM context */
   formatContext(n: number = 20): string {
