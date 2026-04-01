@@ -14,5 +14,16 @@
     "defaultResolution": "1024x1024",
     "spriteModel": "gemini-2.0-flash-exp",
     "spriteResolution": "64x64"
+  },
+  "generate": {
+    "provider": "google",
+    "apiKey": "GOOGLE_API_KEY",
+    "defaultResolution": "watercolor",
+    "maxParallel": 3,
+    "research": {
+      "enabled": true,
+      "schedule": "0 */6 * * *",
+      "maxTopics": 10
+    }
   }
 }

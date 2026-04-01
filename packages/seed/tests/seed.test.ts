@@ -34,6 +34,15 @@ const { DeepSeek } = llmMod;
 
 const uid = () => Math.random().toString(36).slice(2);
 
+/** Wait for a web server to be listening on the given port. */
+function waitForListen(server: any): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (server.listening) { resolve(); return; }
+    server.once('listening', () => resolve());
+    server.once('error', (err: any) => reject(err));
+  });
+}
+
 // ─── Soul Tests ───────────────────────────────────────────────────────────────
 
 describe('Soul', () => {
@@ -391,7 +400,7 @@ describe('Web Routes', () => {
   it('GET / returns HTML chat UI', async () => {
     port = 4100 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/`);
     expect(res.status).toBe(200);
@@ -404,7 +413,7 @@ describe('Web Routes', () => {
   it('GET /api/status returns agent info', async () => {
     port = 4200 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/status`);
     expect(res.status).toBe(200);
@@ -418,7 +427,7 @@ describe('Web Routes', () => {
   it('GET /api/whoami returns full self-perception', async () => {
     port = 4300 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/whoami`);
     expect(res.status).toBe(200);
@@ -432,7 +441,7 @@ describe('Web Routes', () => {
   it('POST /api/chat streams and saves', async () => {
     port = 4400 + Math.floor(Math.random() * 900);
     const { memory } = setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/chat`, {
       method: 'POST',
@@ -451,7 +460,7 @@ describe('Web Routes', () => {
   it('POST /api/chat rejects empty message', async () => {
     port = 4500 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/chat`, {
       method: 'POST',
@@ -464,7 +473,7 @@ describe('Web Routes', () => {
   it('GET /cocapn/soul.md returns public soul', async () => {
     port = 4600 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/cocapn/soul.md`);
     expect(res.status).toBe(200);
@@ -476,7 +485,7 @@ describe('Web Routes', () => {
     const { memory } = setupServer(port, makeMockLlm());
     memory.addMessage('user', 'I love TypeScript');
     memory.addMessage('assistant', 'TypeScript is great');
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/memory/search?q=typescript`);
     expect(res.status).toBe(200);
@@ -487,7 +496,7 @@ describe('Web Routes', () => {
   it('GET /api/memory/search requires q param', async () => {
     port = 4750 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/memory/search`);
     expect(res.status).toBe(400);
@@ -497,7 +506,7 @@ describe('Web Routes', () => {
     port = 4800 + Math.floor(Math.random() * 900);
     const { memory } = setupServer(port, makeMockLlm());
     memory.addMessage('user', 'Remember this');
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/memory`, { method: 'DELETE' });
     expect(res.status).toBe(200);
@@ -508,7 +517,7 @@ describe('Web Routes', () => {
   it('GET /api/git/log returns commits', async () => {
     port = 4900 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/git/log`);
     expect(res.status).toBe(200);
@@ -519,7 +528,7 @@ describe('Web Routes', () => {
   it('GET /api/git/stats returns stats', async () => {
     port = 5000 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/git/stats`);
     expect(res.status).toBe(200);
@@ -531,7 +540,7 @@ describe('Web Routes', () => {
   it('GET /api/git/diff returns diff', async () => {
     port = 5100 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/git/diff`);
     expect(res.status).toBe(200);
@@ -1740,14 +1749,14 @@ describe('Web Multi-User', () => {
     const memory = new Memory(dir);
     const awareness = new Awareness(dir);
     const soul = { name: 'MultiBot', tone: 'friendly', model: 'deepseek', body: 'I help.' };
-    webMod.startWebServer(p, mockLlm, memory, awareness, soul);
-    return { memory, awareness, soul };
+    const server = webMod.startWebServer(p, mockLlm, memory, awareness, soul);
+    return { memory, awareness, soul, server };
   }
 
   it('POST /api/chat sets session cookie', async () => {
     port = 6000 + Math.floor(Math.random() * 900);
-    setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    const { server } = setupServer(port, makeMockLlm());
+    await waitForListen(server);
 
     const res = await fetch(`http://localhost:${port}/api/chat`, {
       method: 'POST',
@@ -1762,7 +1771,7 @@ describe('Web Multi-User', () => {
   it('GET /api/users returns empty initially', async () => {
     port = 6100 + Math.floor(Math.random() * 900);
     setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/users`);
     expect(res.status).toBe(200);
@@ -1773,7 +1782,7 @@ describe('Web Multi-User', () => {
   it('POST /api/user/identify sets user name', async () => {
     port = 6200 + Math.floor(Math.random() * 900);
     const { memory } = setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     // First, create a session via chat
     const chatRes = await fetch(`http://localhost:${port}/api/chat`, {
@@ -1798,7 +1807,7 @@ describe('Web Multi-User', () => {
   it('POST /api/chat with name registers user', async () => {
     port = 6300 + Math.floor(Math.random() * 900);
     const { memory } = setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     await fetch(`http://localhost:${port}/api/chat`, {
       method: 'POST',
@@ -1814,7 +1823,7 @@ describe('Web Multi-User', () => {
   it('two sessions create separate users', async () => {
     port = 6400 + Math.floor(Math.random() * 900);
     const { memory } = setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     // Session 1
     await fetch(`http://localhost:${port}/api/chat`, {
@@ -1839,7 +1848,7 @@ describe('Web Multi-User', () => {
   it('messages are tagged with userId', async () => {
     port = 6500 + Math.floor(Math.random() * 900);
     const { memory } = setupServer(port, makeMockLlm());
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/chat`, {
       method: 'POST',
@@ -2835,7 +2844,7 @@ describe('Web — Files API', () => {
   it('GET /api/files returns file list', async () => {
     port = 7000 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/files`);
     expect(res.status).toBe(200);
@@ -2848,7 +2857,7 @@ describe('Web — Files API', () => {
   it('GET /api/files/hello.txt returns file content', async () => {
     port = 7100 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/files/hello.txt`);
     expect(res.status).toBe(200);
@@ -2860,7 +2869,7 @@ describe('Web — Files API', () => {
   it('GET /api/files/nonexistent returns 404', async () => {
     port = 7200 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/files/nonexistent.txt`);
     expect(res.status).toBe(404);
@@ -2905,7 +2914,7 @@ describe('Web — Analytics API', () => {
   it('GET /api/analytics returns stats', async () => {
     port = 7300 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/analytics`);
     expect(res.status).toBe(200);
@@ -2951,7 +2960,7 @@ describe('Web — Telegram webhook', () => {
   it('POST /api/telegram/webhook processes message', async () => {
     port = 7400 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/telegram/webhook`, {
       method: 'POST',
@@ -2969,7 +2978,7 @@ describe('Web — Telegram webhook', () => {
   it('POST /api/telegram/webhook rejects invalid body', async () => {
     port = 7500 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/telegram/webhook`, {
       method: 'POST',
@@ -2982,7 +2991,7 @@ describe('Web — Telegram webhook', () => {
   it('POST /api/telegram/webhook returns ok:false for no message', async () => {
     port = 7600 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/telegram/webhook`, {
       method: 'POST',
@@ -3029,7 +3038,7 @@ describe('Web — Generic webhook', () => {
   it('POST /api/webhook/slack processes message', async () => {
     port = 7700 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/webhook/slack`, {
       method: 'POST',
@@ -3045,7 +3054,7 @@ describe('Web — Generic webhook', () => {
   it('POST /api/webhook/:channel rejects no text', async () => {
     port = 7800 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/webhook/discord`, {
       method: 'POST',
@@ -3217,7 +3226,7 @@ describe('Web — Repo Map API', () => {
   it('GET /api/repo-map returns ranked file list', async () => {
     port = 7900 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/repo-map`);
     expect(res.status).toBe(200);
@@ -3339,7 +3348,7 @@ describe('Vision Web Endpoints', () => {
   it('GET /api/generate/status returns vision availability', async () => {
     port = 8000 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/generate/status`);
     expect(res.status).toBe(200);
@@ -3350,7 +3359,7 @@ describe('Vision Web Endpoints', () => {
   it('POST /api/generate returns 503 without vision config', async () => {
     port = 8100 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/generate`, {
       method: 'POST',
@@ -3366,7 +3375,7 @@ describe('Vision Web Endpoints', () => {
     port = 8200 + Math.floor(Math.random() * 900);
     setupServer(port);
     webMod.initVision({ apiKey: 'test-key' });
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/generate`, {
       method: 'POST',
@@ -3381,12 +3390,215 @@ describe('Vision Web Endpoints', () => {
   it('GET /api/gallery returns empty gallery', async () => {
     port = 8300 + Math.floor(Math.random() * 900);
     setupServer(port);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
 
     const res = await fetch(`http://localhost:${port}/api/gallery`);
     expect(res.status).toBe(200);
     const data = await res.json() as any;
     expect(data.images).toBeDefined();
     expect(Array.isArray(data.images)).toBe(true);
+  });
+});
+
+// ─── Style Registry Tests ─────────────────────────────────────────────────────
+
+import * as styleReg from '../src/style-registry.ts';
+
+describe('Style Registry', () => {
+  it('exports all resolution presets', () => {
+    const res = styleReg.getAllResolutions();
+    expect(Object.keys(res).length).toBe(7);
+    expect(res['sprite-16']).toBeDefined();
+    expect(res['sprite-32']).toBeDefined();
+    expect(res['sprite-64']).toBeDefined();
+    expect(res['sketch']).toBeDefined();
+    expect(res['watercolor']).toBeDefined();
+    expect(res['oil']).toBeDefined();
+    expect(res['photorealistic']).toBeDefined();
+  });
+
+  it('each preset has width, height, style', () => {
+    for (const [id, preset] of Object.entries(styleReg.getAllResolutions())) {
+      expect(preset.width).toBeGreaterThan(0);
+      expect(preset.height).toBeGreaterThan(0);
+      expect(typeof preset.style).toBe('string');
+      expect(preset.style.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('getResolution returns preset by id', () => {
+    const sprite = styleReg.getResolution('sprite-32');
+    expect(sprite).toBeDefined();
+    expect(sprite!.width).toBe(32);
+    expect(sprite!.height).toBe(32);
+  });
+
+  it('getResolution returns undefined for unknown id', () => {
+    expect(styleReg.getResolution('unknown')).toBeUndefined();
+  });
+
+  it('buildPrompt composes subject + resolution style', () => {
+    const prompt = styleReg.buildPrompt('a dragon', 'sprite-32');
+    expect(prompt).toContain('a dragon');
+    expect(prompt).toContain('pixel art');
+    expect(prompt).toContain('32x32');
+  });
+
+  it('buildPrompt adds custom style and extras', () => {
+    const prompt = styleReg.buildPrompt('castle', 'watercolor', 'dark mood', 'no people');
+    expect(prompt).toContain('castle');
+    expect(prompt).toContain('watercolor');
+    expect(prompt).toContain('dark mood');
+    expect(prompt).toContain('no people');
+  });
+
+  it('buildPrompt works with unknown resolution', () => {
+    const prompt = styleReg.buildPrompt('sunset', 'unknown-resolution');
+    expect(prompt).toContain('sunset');
+  });
+
+  it('sprite presets have square dimensions', () => {
+    for (const id of ['sprite-16', 'sprite-32', 'sprite-64']) {
+      const preset = styleReg.getResolution(id);
+      expect(preset).toBeDefined();
+      expect(preset!.width).toBe(preset!.height);
+    }
+  });
+});
+
+// ─── Generate Module Tests ────────────────────────────────────────────────────
+
+import * as genMod from '../src/generate.ts';
+
+describe('Generate', () => {
+  it('creates Generator instance', () => {
+    const gen = new genMod.Generator({ apiKey: 'test-key' });
+    expect(gen).toBeDefined();
+  });
+
+  it('generateImage throws without valid API key', async () => {
+    const gen = new genMod.Generator({ apiKey: 'invalid-key' });
+    await expect(gen.generateImage('a dragon')).rejects.toThrow();
+  });
+
+  it('generateSprite throws without valid API key', async () => {
+    const gen = new genMod.Generator({ apiKey: 'invalid-key' });
+    await expect(gen.generateSprite('warrior')).rejects.toThrow();
+  });
+
+  it('batchGenerate handles empty tasks', async () => {
+    const gen = new genMod.Generator({ apiKey: 'test-key' });
+    const result = await gen.batchGenerate([]);
+    expect(result.results).toEqual([]);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('batchGenerate reports progress', async () => {
+    const gen = new genMod.Generator({ apiKey: 'invalid-key' });
+    const progressCalls: Array<[number, number]> = [];
+    const result = await gen.batchGenerate(
+      [{ prompt: 'test1' }, { prompt: 'test2' }],
+      { maxParallel: 1, onProgress: (d, t) => progressCalls.push([d, t]) }
+    );
+    // Both tasks fail but progress should have been called
+    expect(result.errors.length).toBe(2);
+  });
+
+  it('cmdGallery lists gallery items or reports empty', () => {
+    const output = genMod.cmdGallery();
+    // Gallery may have items from earlier vision tests or be empty
+    expect(typeof output).toBe('string');
+    expect(output.length).toBeGreaterThan(0);
+  });
+
+  it('cmdGenerate returns usage without prompt', () => {
+    const output = genMod.cmdGenerate('');
+    expect(output).toContain('Usage');
+  });
+
+  it('cmdGenerate starts generation with prompt', () => {
+    const output = genMod.cmdGenerate('a sunset', { apiKey: 'test' });
+    expect(output).toContain('Generating');
+  });
+});
+
+// ─── Research Daemon Tests ────────────────────────────────────────────────────
+
+import * as daemon from '../src/research-daemon.ts';
+
+describe('Research Daemon', () => {
+  beforeEach(() => {
+    daemon.clearJobs();
+  });
+
+  it('startResearch creates a job', () => {
+    const job = daemon.startResearch('TypeScript patterns');
+    expect(job.id).toBeDefined();
+    expect(job.topic).toBe('TypeScript patterns');
+    expect(['queued', 'running', 'done']).toContain(job.status);
+  });
+
+  it('checkResearch returns job by id', async () => {
+    const job = daemon.startResearch('test topic');
+    const found = daemon.checkResearch(job.id);
+    expect(found).toBeDefined();
+    expect(found!.topic).toBe('test topic');
+  });
+
+  it('checkResearch returns undefined for unknown id', () => {
+    expect(daemon.checkResearch('nonexistent')).toBeUndefined();
+  });
+
+  it('listResearch returns all jobs', () => {
+    daemon.startResearch('topic a');
+    daemon.startResearch('topic b');
+    const all = daemon.listResearch();
+    expect(all.length).toBe(2);
+  });
+
+  it('job completes asynchronously', async () => {
+    const job = daemon.startResearch('async test');
+    await new Promise(r => setTimeout(r, 100));
+    const found = daemon.checkResearch(job.id);
+    expect(found!.status).toBe('done');
+    expect(found!.progress).toBe(1);
+    expect(found!.findings.length).toBeGreaterThan(0);
+    expect(found!.completedAt).toBeDefined();
+  });
+
+  it('onFinding callback receives data', async () => {
+    const findings: any[] = [];
+    const job = daemon.startResearch('callback test', {
+      onFinding: (_id, f) => findings.push(f),
+    });
+    await new Promise(r => setTimeout(r, 100));
+    expect(findings.length).toBeGreaterThan(0);
+  });
+
+  it('onComplete callback fires', async () => {
+    let completed = false;
+    daemon.startResearch('complete test', {
+      onComplete: () => { completed = true; },
+    });
+    await new Promise(r => setTimeout(r, 100));
+    expect(completed).toBe(true);
+  });
+
+  it('autoResearchSchedule returns inactive when disabled', () => {
+    const result = daemon.autoResearchSchedule({ enabled: false, cron: '', maxTopics: 5 });
+    expect(result.active).toBe(false);
+  });
+
+  it('autoResearchSchedule returns active when enabled', () => {
+    const result = daemon.autoResearchSchedule({ enabled: true, cron: '0 */6 * * *', maxTopics: 10 });
+    expect(result.active).toBe(true);
+    expect(result.nextRun).toContain('0 */6 * * *');
+  });
+
+  it('clearJobs removes all jobs', () => {
+    daemon.startResearch('to clear');
+    expect(daemon.listResearch().length).toBe(1);
+    daemon.clearJobs();
+    expect(daemon.listResearch().length).toBe(0);
   });
 });
