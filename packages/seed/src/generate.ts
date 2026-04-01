@@ -1,10 +1,12 @@
 /**
  * Generate — universal asset generation for cocapn apps.
  *
- * Wraps Vision with batch queuing, sprite generation, and CLI commands.
- * Zero dependencies — uses Vision (fetch-based) internally.
+ * Wraps Google Gemini for image generation with filesystem persistence.
+ * Falls back to Vision (legacy) when configured.
  */
 
+import { Google } from './google.js';
+import type { ImageResult } from './google.js';
 import { Vision } from './vision.js';
 import type { VisionConfig, GenerateOptions, GenerateResult } from './vision.js';
 import { buildPrompt, getResolution } from './style-registry.js';
@@ -14,7 +16,7 @@ import { addToGallery, getGallery } from './vision.js';
 
 export interface GenerateTask {
   prompt: string;
-  options?: GenerateOptions & { width?: number; height?: number };
+  options?: GenerateOptions & { width?: number; height?: number; outputDir?: string };
 }
 
 export interface BatchResult {
@@ -31,30 +33,59 @@ export interface BatchConfig {
 
 export class Generator {
   private vision: Vision;
+  private google: Google;
+  private apiKey: string;
 
-  constructor(config?: VisionConfig) {
+  constructor(config?: VisionConfig & { outputDir?: string }) {
+    this.apiKey = config?.apiKey ?? process.env.GOOGLE_API_KEY ?? '';
     this.vision = new Vision(config);
+    this.google = new Google({ apiKey: this.apiKey });
   }
 
-  /** Generate an image with enhanced options */
-  async generateImage(prompt: string, options?: GenerateOptions & { width?: number; height?: number }): Promise<GenerateResult> {
-    const res = options?.width && options?.height ? `${options.width}x${options.height}` : options?.resolution;
-    const result = await this.vision.generateImage(prompt, { ...options, resolution: res });
-    addToGallery(result);
-    return result;
+  /** Generate an image via Google Gemini and save to filesystem */
+  async generateImage(prompt: string, options?: GenerateOptions & { width?: number; height?: number; outputDir?: string }): Promise<GenerateResult> {
+    const outputDir = options?.outputDir ?? 'generated';
+    const result: ImageResult = await this.google.generateImage(prompt, {
+      model: 'gemini-2.5-flash-image',
+      outputDir,
+    });
+
+    const generateResult: GenerateResult = {
+      url: result.path ?? `data:${result.mimeType};base64,${result.base64.slice(0, 100)}...`,
+      base64: result.base64,
+      metadata: {
+        model: 'gemini-2.5-flash-image',
+        resolution: `${Math.round(Math.sqrt(result.size))}x${Math.round(Math.sqrt(result.size))}`,
+        prompt,
+        created: new Date().toISOString(),
+      },
+    };
+    addToGallery(generateResult);
+    return generateResult;
   }
 
   /** Generate pixel art sprite at standard sizes */
   async generateSprite(prompt: string, options?: { size?: 16 | 32 | 64 | 128; style?: string; seed?: number }): Promise<GenerateResult> {
     const size = options?.size ?? 32;
     const spritePrompt = `${prompt}, pixel art, ${size}x${size} sprite, limited color palette, retro game style, transparent background`;
-    const result = await this.vision.generateImage(spritePrompt, {
-      resolution: `${size}x${size}`,
-      style: options?.style ?? 'pixel-art',
-      seed: options?.seed,
+    const result: ImageResult = await this.google.generateImage(spritePrompt, {
+      model: 'gemini-2.5-flash-image',
+      outputDir: 'generated/sprites',
+      filename: `sprite-${size}-${Date.now()}.png`,
     });
-    addToGallery(result);
-    return result;
+
+    const generateResult: GenerateResult = {
+      url: result.path ?? `data:${result.mimeType};base64,${result.base64.slice(0, 100)}...`,
+      base64: result.base64,
+      metadata: {
+        model: 'gemini-2.5-flash-image',
+        resolution: `${size}x${size}`,
+        prompt: spritePrompt,
+        created: new Date().toISOString(),
+      },
+    };
+    addToGallery(generateResult);
+    return generateResult;
   }
 
   /** Batch generate with parallel queue */

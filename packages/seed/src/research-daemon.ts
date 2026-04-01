@@ -1,11 +1,14 @@
 /**
  * Research Daemon — background auto-research system for cocapn.
  *
- * Manages research jobs, scheduling, and notifications.
- * Runs as part of the cocapn agent, non-blocking. Zero deps.
+ * Uses Google Gemini for deep analysis and quick summaries.
+ * Saves findings to memory/knowledge/. Zero deps beyond google.ts.
  */
 
-import { EventEmitter } from 'node:events';
+import { Google, GOOGLE_MODELS } from './google.js';
+import type { ChatResult } from './google.js';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -20,12 +23,15 @@ export interface ResearchJob {
   error?: string;
   startedAt?: string;
   completedAt?: string;
+  summary?: string;
 }
 
 export interface ResearchConfig {
   maxConcurrent?: number;
   onFinding?: (topicId: string, finding: any) => void;
   onComplete?: (topicId: string, findings: any[]) => void;
+  apiKey?: string;
+  outputDir?: string;
 }
 
 export interface ScheduleConfig {
@@ -40,10 +46,20 @@ export interface ScheduleConfig {
 const jobs = new Map<string, ResearchJob>();
 let jobCounter = 0;
 
+/** Injectable Google instance — override for testing */
+let _google: Google | null = null;
+
+/** Set a custom Google instance (for testing) */
+export function setGoogleInstance(g: Google | null): void {
+  _google = g;
+}
+
 export function startResearch(topic: string, config?: ResearchConfig): ResearchJob {
   const id = `research-${++jobCounter}-${Date.now()}`;
   const job: ResearchJob = { id, topic, status: 'queued', progress: 0, findings: [], startedAt: new Date().toISOString() };
   jobs.set(id, job);
+
+  const google = _google ?? new Google({ apiKey: config?.apiKey });
 
   // Run asynchronously
   (async () => {
@@ -51,22 +67,38 @@ export function startResearch(topic: string, config?: ResearchConfig): ResearchJ
     job.progress = 0.1;
 
     try {
-      // Phase 1: Gather
+      // Phase 1: Quick overview via Flash
       job.progress = 0.3;
-      const gathered = [{ source: 'internal', topic, relevance: 1.0, summary: `Research on: ${topic}` }];
-      config?.onFinding?.(id, gathered[0]);
-      job.findings.push(...gathered);
+      const overview: ChatResult = await google.chat(
+        `Provide a concise overview of: ${topic}. Key concepts, current state, and practical uses.`,
+        GOOGLE_MODELS.flash,
+      );
+      const gathered = { source: 'gemini-flash', model: overview.model, topic, relevance: 1.0, summary: overview.text };
+      config?.onFinding?.(id, gathered);
+      job.findings.push(gathered);
 
-      // Phase 2: Analyze
+      // Phase 2: Deep analysis via Pro
       job.progress = 0.6;
-      const analysis = { source: 'analysis', topic, insights: [`Key aspects of ${topic}`], confidence: 0.8 };
+      const analysisResult: ChatResult = await google.analyze(topic);
+      const analysis = { source: 'gemini-pro', model: analysisResult.model, topic, insights: analysisResult.text, confidence: 0.9 };
       config?.onFinding?.(id, analysis);
       job.findings.push(analysis);
 
-      // Phase 3: Synthesize
+      // Phase 3: Synthesize summary via Flash
       job.progress = 0.9;
-      const synthesis = { source: 'synthesis', topic, conclusion: `Research complete for ${topic}`, recommendations: [] };
+      const synthesisPrompt = `Synthesize the following research on "${topic}" into a clear, actionable summary with key findings and recommendations:\n\nOverview: ${overview.text.slice(0, 500)}\n\nDeep Analysis: ${analysisResult.text.slice(0, 1000)}`;
+      const synthesisResult: ChatResult = await google.chat(synthesisPrompt, GOOGLE_MODELS.flash);
+      const synthesis = { source: 'synthesis', topic, conclusion: synthesisResult.text, recommendations: [] };
       job.findings.push(synthesis);
+      job.summary = synthesisResult.text;
+
+      // Save to filesystem
+      const outputDir = config?.outputDir ?? 'memory/knowledge';
+      mkdirSync(outputDir, { recursive: true });
+      const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const filePath = join(outputDir, `${slug}.md`);
+      const md = [`# ${topic}`, '', `> Generated: ${new Date().toISOString()}`, '', '## Overview', '', overview.text, '', '## Deep Analysis', '', analysisResult.text, '', '## Summary', '', synthesisResult.text, ''].join('\n');
+      writeFileSync(filePath, md, 'utf-8');
 
       job.status = 'done';
       job.progress = 1;

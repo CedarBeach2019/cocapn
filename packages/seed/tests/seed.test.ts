@@ -3526,20 +3526,37 @@ describe('Generate', () => {
 
 import * as daemon from '../src/research-daemon.ts';
 
+/** Mock Google instance that resolves instantly */
+function mockGoogle() {
+  return {
+    chat: async (_prompt: string, _model?: string) => ({ text: `Mock analysis of topic`, model: 'gemini-2.5-flash' }),
+    analyze: async (topic: string) => ({ text: `Deep analysis of ${topic}`, model: 'gemini-2.5-pro' }),
+    generateImage: async (prompt: string) => ({ base64: 'bW9jaw==', mimeType: 'image/png', size: 4 }),
+  } as any;
+}
+
 describe('Research Daemon', () => {
+  let daemonTmpDir: string;
   beforeEach(() => {
+    daemonTmpDir = join(tmpdir(), `cocapn-daemon-${uid()}`);
+    mkdirSync(daemonTmpDir, { recursive: true });
     daemon.clearJobs();
+    daemon.setGoogleInstance(mockGoogle());
+  });
+  afterEach(() => {
+    daemon.setGoogleInstance(null);
+    try { rmSync(daemonTmpDir, { recursive: true, force: true }); } catch {}
   });
 
   it('startResearch creates a job', () => {
-    const job = daemon.startResearch('TypeScript patterns');
+    const job = daemon.startResearch('TypeScript patterns', { outputDir: daemonTmpDir });
     expect(job.id).toBeDefined();
     expect(job.topic).toBe('TypeScript patterns');
     expect(['queued', 'running', 'done']).toContain(job.status);
   });
 
   it('checkResearch returns job by id', async () => {
-    const job = daemon.startResearch('test topic');
+    const job = daemon.startResearch('test topic', { outputDir: daemonTmpDir });
     const found = daemon.checkResearch(job.id);
     expect(found).toBeDefined();
     expect(found!.topic).toBe('test topic');
@@ -3550,15 +3567,15 @@ describe('Research Daemon', () => {
   });
 
   it('listResearch returns all jobs', () => {
-    daemon.startResearch('topic a');
-    daemon.startResearch('topic b');
+    daemon.startResearch('topic a', { outputDir: daemonTmpDir });
+    daemon.startResearch('topic b', { outputDir: daemonTmpDir });
     const all = daemon.listResearch();
     expect(all.length).toBe(2);
   });
 
   it('job completes asynchronously', async () => {
-    const job = daemon.startResearch('async test');
-    await new Promise(r => setTimeout(r, 100));
+    const job = daemon.startResearch('async test', { outputDir: daemonTmpDir });
+    await new Promise(r => setTimeout(r, 200));
     const found = daemon.checkResearch(job.id);
     expect(found!.status).toBe('done');
     expect(found!.progress).toBe(1);
@@ -3569,18 +3586,20 @@ describe('Research Daemon', () => {
   it('onFinding callback receives data', async () => {
     const findings: any[] = [];
     const job = daemon.startResearch('callback test', {
+      outputDir: daemonTmpDir,
       onFinding: (_id, f) => findings.push(f),
     });
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
     expect(findings.length).toBeGreaterThan(0);
   });
 
   it('onComplete callback fires', async () => {
     let completed = false;
     daemon.startResearch('complete test', {
+      outputDir: daemonTmpDir,
       onComplete: () => { completed = true; },
     });
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
     expect(completed).toBe(true);
   });
 
@@ -3596,10 +3615,35 @@ describe('Research Daemon', () => {
   });
 
   it('clearJobs removes all jobs', () => {
-    daemon.startResearch('to clear');
+    daemon.startResearch('to clear', { outputDir: daemonTmpDir });
     expect(daemon.listResearch().length).toBe(1);
     daemon.clearJobs();
     expect(daemon.listResearch().length).toBe(0);
+  });
+
+  it('saves research to outputDir', async () => {
+    daemon.startResearch('art styles', { outputDir: daemonTmpDir });
+    await new Promise(r => setTimeout(r, 200));
+    expect(existsSync(join(daemonTmpDir, 'art-styles.md'))).toBe(true);
+  });
+
+  it('populates summary field', async () => {
+    const job = daemon.startResearch('game mechanics', { outputDir: daemonTmpDir });
+    await new Promise(r => setTimeout(r, 200));
+    const found = daemon.checkResearch(job.id);
+    expect(found!.summary).toBeTruthy();
+  });
+
+  it('handles Google API error gracefully', async () => {
+    daemon.setGoogleInstance({
+      chat: async () => { throw new Error('API unavailable'); },
+      analyze: async () => { throw new Error('API unavailable'); },
+    } as any);
+    const job = daemon.startResearch('failing topic', { outputDir: daemonTmpDir });
+    await new Promise(r => setTimeout(r, 200));
+    const found = daemon.checkResearch(job.id);
+    expect(found!.status).toBe('error');
+    expect(found!.error).toContain('API unavailable');
   });
 });
 
@@ -3836,5 +3880,153 @@ describe('Cross-Agent Integration', () => {
     expect(bus.list()).toEqual(['agent-a', 'agent-b', 'agent-c']);
     bus.disconnect('agent-b');
     expect(bus.list()).toEqual(['agent-a', 'agent-c']);
+  });
+});
+
+// ─── Google API Wrapper Tests ──────────────────────────────────────────────────
+
+import * as googleMod from '../src/google.ts';
+
+describe('Google API Wrapper', () => {
+  it('creates Google instance with defaults', () => {
+    const g = new googleMod.Google();
+    expect(g).toBeDefined();
+  });
+
+  it('creates Google instance with config', () => {
+    const g = new googleMod.Google({ apiKey: 'test-key' });
+    expect(g).toBeDefined();
+  });
+
+  it('exports GOOGLE_MODELS', () => {
+    expect(googleMod.GOOGLE_MODELS).toBeDefined();
+    expect(googleMod.GOOGLE_MODELS.flash).toBe('gemini-2.5-flash');
+    expect(googleMod.GOOGLE_MODELS.pro).toBe('gemini-2.5-pro');
+    expect(googleMod.GOOGLE_MODELS.image).toBe('gemini-2.5-flash-image');
+    expect(googleMod.GOOGLE_MODELS.preview).toBe('gemini-3.1-pro-preview');
+  });
+
+  it('chat throws without valid API key', async () => {
+    const g = new googleMod.Google({ apiKey: 'invalid-key' });
+    await expect(g.chat('hello')).rejects.toThrow();
+  });
+
+  it('analyze throws without valid API key', async () => {
+    const g = new googleMod.Google({ apiKey: 'invalid-key' });
+    await expect(g.analyze('TypeScript')).rejects.toThrow();
+  });
+
+  it('generateImage throws without valid API key', async () => {
+    const g = new googleMod.Google({ apiKey: 'invalid-key' });
+    await expect(g.generateImage('a dragon')).rejects.toThrow();
+  });
+
+  it('generateImage saves to filesystem when outputDir set', async () => {
+    // Mock fetch to return a valid Gemini image response
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ inlineData: { data: 'aW1jb3NvY2R0ZXN0', mimeType: 'image/png' } }] } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    try {
+      const tmpOutput = join(tmpdir(), `cocapn-gimg-${uid()}`);
+      const g = new googleMod.Google({ apiKey: 'test-key' });
+      const result = await g.generateImage('test prompt', { outputDir: tmpOutput });
+      expect(result.base64).toBeTruthy();
+      expect(result.mimeType).toBe('image/png');
+      expect(result.size).toBeGreaterThan(0);
+      expect(result.path).toBeTruthy();
+      expect(existsSync(result.path!)).toBe(true);
+      try { rmSync(tmpOutput, { recursive: true, force: true }); } catch {}
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('chat returns parsed text from mock', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: 'Hello from Gemini' }] } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    try {
+      const g = new googleMod.Google({ apiKey: 'test-key' });
+      const result = await g.chat('hello');
+      expect(result.text).toBe('Hello from Gemini');
+      expect(result.model).toBeTruthy();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('analyze calls pro model', async () => {
+    const originalFetch = globalThis.fetch;
+    let calledUrl = '';
+    globalThis.fetch = async (url: any) => {
+      calledUrl = String(url);
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Deep analysis' }] } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    try {
+      const g = new googleMod.Google({ apiKey: 'test-key' });
+      const result = await g.analyze('topic');
+      expect(result.text).toBe('Deep analysis');
+      expect(calledUrl).toContain('gemini-2.5-pro');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('generateImage throws when no image in response', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: 'No image here' }] } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    try {
+      const g = new googleMod.Google({ apiKey: 'test-key' });
+      await expect(g.generateImage('test')).rejects.toThrow('No image');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+// ─── Generate with Google Tests ──────────────────────────────────────────────
+
+describe('Generate with Google', () => {
+  it('generateImage uses Google via mock', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ inlineData: { data: 'aW1jb3NvY2R0ZXN0', mimeType: 'image/png' } }] } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    try {
+      const gen = new genMod.Generator({ apiKey: 'test-key' });
+      const result = await gen.generateImage('a sunset', { outputDir: join(tmpdir(), `cocapn-gen-${uid()}`) });
+      expect(result.base64).toBeTruthy();
+      expect(result.metadata.model).toBe('gemini-2.5-flash-image');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('generateSprite uses Google via mock', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ inlineData: { data: 'c3ByZXR0ZXN0', mimeType: 'image/png' } }] } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    try {
+      const gen = new genMod.Generator({ apiKey: 'test-key' });
+      const result = await gen.generateSprite('warrior', { size: 32 });
+      expect(result.base64).toBeTruthy();
+      expect(result.metadata.model).toBe('gemini-2.5-flash-image');
+      expect(result.metadata.resolution).toBe('32x32');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
