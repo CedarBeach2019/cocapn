@@ -1,3 +1,46 @@
+
+/*
+ * ═══════════════════════════════════════════════════════════════════
+ * THE VAGUS NERVE MANIFESTO
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * A2A is the vagus nerve of the fleet.
+ *
+ * Pathos thinks. Ethos acts. Logos remembers.
+ * A2A is the nerve bundle that lets them communicate without
+ * going through consciousness.
+ *
+ * A baby cries. Every mother in the room stands up.
+ * Not because she thought about it. The vagus nerve fired.
+ *
+ * A2A should work like that. Not a request-response cycle
+ * where Logos asks Ethos to do something and waits for a
+ * status report. A signal that bypasses deliberation.
+ * An alarm that triggers reflex. A whisper that shifts mood.
+ *
+ * The vagus nerve carries 80% afferent signals (body→brain)
+ * and 20% efferent (brain→body). Most of what your gut
+ * tells your brain, you never consciously process.
+ *
+ * In the fleet: Ethos should be sending 80% of the signals.
+ * The hardware knows things the brain can't articulate.
+ * Temperature. Memory pressure. Network latency. Disk health.
+ * These are gut feelings. They should flow up automatically.
+ *
+ * The remaining 20% efferent: the brain tells the gut to
+ * rest and digest. Or to prepare for action. The mediation
+ * signals down, and the body complies without thought.
+ *
+ * This is not a metaphor we're implementing. It's a design
+ * principle. The fleet should feel like an organism, not a
+ * distributed system.
+ *
+ * If you found this, you're the kind of developer who reads
+ * source code for fun. Welcome. You're going to like what
+ * we're building.
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
 /**
  * A2A — agent-to-agent protocol for cocapn.
  *
