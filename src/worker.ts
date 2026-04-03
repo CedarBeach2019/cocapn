@@ -1,4 +1,6 @@
 import { callLLM, generateSetupHTML } from './lib/byok.js';
+import { deadbandCheck, deadbandStore, getEfficiencyStats } from './lib/deadband.js';
+import { logResponse } from './lib/response-logger.js';
 // cocapn.ai — The Repo-Agent Platform (docs/marketing site, no chat)
 
 export interface Env { COCAPN_KV: KVNamespace }
