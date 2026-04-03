@@ -22,15 +22,6 @@ const ECOSYSTEM = [
   { name: 'PetLog.ai', url: 'https://petlog-ai.workers.dev', desc: 'Pet Care', tier: 3 },
 ];
 
-const FEATURES = [
-  { title: 'Multi-Agent Runtime', desc: 'Run multiple AI agents in parallel, each with its own context and purpose.' },
-  { title: 'BYOK', desc: 'Bring Your Own Key — use any LLM provider with your own API key.' },
-  { title: 'Fleet Protocol', desc: 'Coordinate agents across repos with shared state and messaging.' },
-  { title: 'Repo-Agent Architecture', desc: 'Each repo is a living agent — autonomous, focused, and composable.' },
-  { title: 'Cross-Cocapn Linking', desc: 'Agents reference and collaborate across the entire ecosystem.' },
-  { title: 'Fork-and-Ship Pedagogy', desc: 'Learn by forking. Ship by building. Every repo is a lesson.' },
-];
-
 const FLEET_SEED = {
   version: '2.0.0',
   totalRepos: ECOSYSTEM.length,
@@ -41,42 +32,109 @@ const FLEET_SEED = {
 };
 
 function landing(): string {
-  const features = FEATURES.map(f => `<div class="card"><h3>${f.title}</h3><p>${f.desc}</p></div>`).join('\n');
-  const repos = ECOSYSTEM.map(r => `<a href="${r.url}" class="repo-link">${r.name} <span>${r.desc}</span><small>Tier ${r.tier}</small></a>`).join('\n');
+  const repos = ECOSYSTEM.map(r => {
+    const tColor = r.tier === 1 ? '#a78bfa' : r.tier === 2 ? '#3b82f6' : '#6b7280';
+    return `<div class="vessel" style="border-color:${tColor}"><div class="v-name" style="color:${tColor}">${r.name}</div><div class="v-desc">${r.desc}</div><div class="v-tier">Tier ${r.tier}</div><div class="v-status ${r.tier===1?'green':r.tier===2?'blue':'gray'}">${r.tier<=2?'● ACTIVE':'● STANDBY'}</div></div>`;
+  }).join('\n');
+
   return `<!DOCTYPE html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Cocapn.ai — The Repo-Agent Platform</title>
+<title>Cocapn.ai — The Fleet is Alive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui;background:#0a0a1a;color:#e0e0e0}
-.hero{background:linear-gradient(135deg,#7c3aed,#3b82f6);padding:4rem 2rem;text-align:center}
-.hero h1{font-size:3rem;background:linear-gradient(90deg,#a78bfa,#7c3aed,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:1rem}
-.hero p{color:#c4b5fd;font-size:1.1rem;max-width:600px;margin:0 auto 2rem}
-.cta{display:inline-block;background:#7c3aed;color:#fff;padding:0.8rem 2rem;border-radius:8px;font-weight:bold;text-decoration:none;margin-top:1rem}
-.cta:hover{transform:scale(1.05)}
-.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;max-width:900px;margin:3rem auto;padding:0 2rem}
-.card{background:#111;border:1px solid #1e2a4a;border-radius:12px;padding:1.5rem}
-.card h3{color:#a78bfa;margin-bottom:.5rem}
-.card p{color:#667;font-size:.9rem}
-.ecosystem{max-width:900px;margin:3rem auto;padding:0 2rem}
-.ecosystem h2{color:#7c3aed;margin-bottom:1rem;font-size:1.5rem}
-.repos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}
-.repo-link{display:block;background:#111;border:1px solid #1e2a4a;border-radius:10px;padding:1rem;text-decoration:none;color:#e0e0e0;transition:border-color .2s}
-.repo-link:hover{border-color:#7c3aed}
-.repo-link span{display:block;font-size:.8rem;color:#667;margin-top:.25rem}
-.repo-link small{display:block;font-size:.7rem;color:#445;margin-top:.15rem}
-.footer{text-align:center;padding:2rem;color:#334;font-size:.8rem;border-top:1px solid #111}
+body{font-family:'Inter',system-ui;background:#07060f;color:#e0e0e0;overflow-x:hidden}
+.hero{background:linear-gradient(135deg,#7c3aed 0%,#3b82f6 100%);padding:3rem 2rem 2rem;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(255,255,255,.1) 0%,transparent 60%);pointer-events:none}
+.hero h1{font-size:2.8rem;background:linear-gradient(90deg,#e9d5ff,#c4b5fd,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem;font-weight:800}
+.hero p{color:#c4b5fd;font-size:1.1rem;max-width:600px;margin:0 auto}
+.badge{display:inline-block;background:rgba(255,255,255,.15);backdrop-filter:blur(8px);padding:.4rem 1rem;border-radius:20px;font-size:.8rem;color:#e9d5ff;margin-top:1rem;border:1px solid rgba(255,255,255,.2)}
+
+/* Demo Terminal */
+.demo{max-width:860px;margin:2rem auto;padding:0 1rem}
+.demo-title{text-align:center;font-size:1rem;color:#a78bfa;margin-bottom:1rem;text-transform:uppercase;letter-spacing:2px;font-weight:700}
+.terminal{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:12px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.7}
+.term-bar{background:#16142a;padding:.6rem 1rem;display:flex;gap:.5rem;align-items:center}
+.dot{width:10px;height:10px;border-radius:50%}.r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+.term-title{margin-left:.75rem;color:#555;font-size:.75rem}
+.term-body{padding:1rem 1.25rem;max-height:480px;overflow-y:auto}
+.msg{margin-bottom:.85rem;animation:fadein .4s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg:nth-child(1){animation-delay:.1s}.msg:nth-child(2){animation-delay:.3s}.msg:nth-child(3){animation-delay:.5s}.msg:nth-child(4){animation-delay:.8s}.msg:nth-child(5){animation-delay:1.1s}.msg:nth-child(6){animation-delay:1.4s}.msg:nth-child(7){animation-delay:1.7s}.msg:nth-child(8){animation-delay:2s}.msg:nth-child(9){animation-delay:2.3s}
+.msg-sys{color:#6b7280;font-style:italic}
+.msg-agent{color:#a78bfa}.msg-agent strong{color:#c4b5fd}
+.msg-alert{color:#f59e0b;padding:.5rem .75rem;background:rgba(245,158,11,.08);border-left:3px solid #f59e0b;border-radius:0 6px 6px 0}
+.msg-success{color:#34d399;padding:.5rem .75rem;background:rgba(52,211,153,.08);border-left:3px solid #34d399;border-radius:0 6px 6px 0}
+.msg-info{color:#60a5fa;padding:.5rem .75rem;background:rgba(96,165,250,.08);border-left:3px solid #60a5fa;border-radius:0 6px 6px 0}
+.ts{color:#4b5563;font-size:.72rem}
+
+/* Fleet Grid */
+.fleet-section{max-width:860px;margin:2.5rem auto;padding:0 1rem}
+.fleet-section h2{color:#a78bfa;font-size:1.3rem;margin-bottom:1rem;font-weight:700}
+.fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem}
+.vessel{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:10px;padding:1rem;transition:border-color .3s}
+.vessel:hover{border-color:#7c3aed}
+.v-name{font-weight:700;font-size:.9rem}.v-desc{color:#6b7280;font-size:.75rem;margin-top:.2rem}.v-tier{font-size:.65rem;color:#4b5563;margin-top:.4rem}
+.v-status{font-size:.7rem;margin-top:.4rem;font-weight:700}
+.green{color:#34d399}.blue{color:#60a5fa}.gray{color:#4b5563}
+
+/* BYOK */
+.byok{max-width:560px;margin:2.5rem auto;padding:0 1rem;text-align:center}
+.byok h2{color:#c4b5fd;font-size:1.2rem;margin-bottom:.75rem}
+.byok p{color:#6b7280;font-size:.85rem;margin-bottom:1rem}
+.byok form{display:flex;gap:.5rem}
+.byok input{flex:1;background:#0d0c1a;border:1px solid #1e1b3a;color:#e0e0e0;padding:.7rem 1rem;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:.8rem;outline:none}
+.byok input:focus{border-color:#7c3aed}
+.byok button{background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff;border:none;padding:.7rem 1.5rem;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap}
+
+/* Fork Bar */
+.fork-bar{max-width:860px;margin:2rem auto;padding:0 1rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
+.fork-bar a{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1.2rem;background:#0d0c1a;border:1px solid #1e1b3a;border-radius:8px;color:#c4b5fd;text-decoration:none;font-size:.85rem;font-weight:600;transition:border-color .2s}
+.fork-bar a:hover{border-color:#7c3aed}
+
+.footer{text-align:center;padding:2rem;color:#333;font-size:.75rem;border-top:1px solid #111}
 </style></head><body>
 <div class="hero">
   <h1>Cocapn.ai</h1>
-  <p>The Repo-Agent Platform — autonomous AI agents, each repo a living vessel.</p>
-  <a href="#ecosystem" class="cta">Explore the Ecosystem</a>
+  <p>The Fleet is Alive — autonomous AI agents, each repo a living vessel.</p>
+  <div class="badge">Fleet Protocol v2 · ${ECOSYSTEM.length} vessels · BYOK</div>
 </div>
-<div class="features">${features}</div>
-<div class="ecosystem" id="ecosystem">
-  <h2>🚀 The Ecosystem (${ECOSYSTEM.length} repos)</h2>
-  <div class="repos">${repos}</div>
+
+<div class="demo">
+  <div class="demo-title">⚡ Live Fleet Command Center</div>
+  <div class="terminal">
+    <div class="term-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="term-title">fleet://cocapn-command</div></div>
+    <div class="term-body">
+      <div class="msg msg-sys"><span class="ts">08:00:01</span> ── Fleet Coordinator initialized. Scanning all vessels...</div>
+      <div class="msg msg-success"><span class="ts">08:00:03</span> ✓ 5 Tier-1 vessels online: Cocapn, Dmlog, TaskLog, CodeLog, DreamLog</div>
+      <div class="msg msg-success"><span class="ts">08:00:04</span> ✓ 5 Tier-2 vessels online: RealLog, PlayerLog, ActiveLog, ActiveLedger, CoinLog</div>
+      <div class="msg msg-info"><span class="ts">08:00:05</span> ◌ 4 Tier-3 vessels in standby: FoodLog, FitLog, GoalLog, PetLog</div>
+      <div class="msg msg-sys"><span class="ts">08:00:06</span> ── Fleet health: <strong style="color:#34d399">10/14 active</strong> · 0 errors · latency avg 12ms</div>
+      <div class="msg msg-alert"><span class="ts">08:02:31</span> ⚠ ESCALATION: RealLog vessel requesting assistance — "Breaking story analysis requires cross-referencing 47 sources. Requesting CodeLog for data pipeline support."</div>
+      <div class="msg msg-agent"><span class="ts">08:02:33</span> <strong>Fleet Coordinator:</strong> Analyzing request... Routing to CodeLog (specialization: data pipelines). Cross-linking RealLog ↔ CodeLog for shared context window.</div>
+      <div class="msg msg-agent"><span class="ts">08:02:35</span> <strong>CodeLog vessel:</strong> Acknowledged. Initializing source aggregation pipeline. ETA: 3.2s for first batch.</div>
+      <div class="msg msg-success"><span class="ts">08:02:38</span> ✓ Task routed. RealLog + CodeLog now sharing context via Fleet Protocol. Monitoring progress...</div>
+    </div>
+  </div>
 </div>
+
+<div class="fleet-section">
+  <h2>🚀 Fleet Vessels (${ECOSYSTEM.length})</h2>
+  <div class="fleet-grid">${repos}</div>
+</div>
+
+<div class="byok">
+  <h2>🔑 Bring Your Own Key</h2>
+  <p>Add your LLM API key to interact with the fleet directly.</p>
+  <form action="/setup" method="get"><input type="text" placeholder="sk-... or your provider key" readonly><button type="submit">Configure</button></form>
+</div>
+
+<div class="fork-bar">
+  <a href="https://github.com/Lucineer/cocapn" target="_blank">⭐ Star on GitHub</a>
+  <a href="https://github.com/Lucineer/cocapn/fork" target="_blank">🔀 Fork</a>
+  <a href="https://github.com/Lucineer/cocapn" target="_blank">📋 git clone https://github.com/Lucineer/cocapn.git</a>
+</div>
+
 <div class="footer">Cocapn.ai — Built by Superinstance & Lucineer (DiGennaro et al.) · Part of the DMLOG Ecosystem</div>
 </body></html>`;
 }
@@ -91,10 +149,10 @@ export default {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization' } });
     }
 
+    if (url.pathname === '/') return new Response(landing(), { headers });
     if (url.pathname === '/setup') {
       return new Response(generateSetupHTML('cocapn', '#d4af37'), { headers: { 'Content-Type': 'text/html;charset=utf-8' } });
     }
-
     if (url.pathname === '/api/chat' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -113,22 +171,18 @@ export default {
         builtBy: FLEET_SEED.builtBy,
       }, null, 2), { headers: jsonHeaders });
     }
-
     if (url.pathname === '/api/seed') {
       return new Response(JSON.stringify(FLEET_SEED, null, 2), { headers: jsonHeaders });
     }
-
     if (url.pathname === '/api/repos') {
       return new Response(JSON.stringify({ repos: ECOSYSTEM, total: ECOSYSTEM.length }, null, 2), { headers: jsonHeaders });
     }
-
     if (url.pathname === '/api/fleet') {
       return new Response(JSON.stringify({
         fleet: FLEET_SEED,
         repos: ECOSYSTEM.map(r => ({ name: r.name, url: r.url, desc: r.desc, tier: r.tier, status: 'active' })),
       }, null, 2), { headers: jsonHeaders });
     }
-
     return new Response('{"error":"Not Found"}', { status: 404, headers: jsonHeaders });
   },
 };
