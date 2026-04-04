@@ -1,514 +1,203 @@
-import { addNode, addEdge, traverse, crossDomainQuery, findPath, domainStats, getDomainNodes } from './lib/knowledge-graph.js';
-import { loadSeedIntoKG, FLEET_REPOS, loadAllSeeds } from './lib/seed-loader.js';
-import { evapPipeline, getEvapReport, getLockStats } from './lib/evaporation-pipeline.js';
-import { selectModel } from './lib/model-router.js';
-import { trackConfidence, getConfidence } from './lib/confidence-tracker.js';
-import { callLLM, generateSetupHTML } from './lib/byok.js';
-import { deadbandCheck, deadbandStore, getEfficiencyStats } from './lib/deadband.js';
-import { logResponse } from './lib/response-logger.js';
-
-import { storePattern, findSimilar, getNeighborhood, crossRepoTransfer, listPatterns } from './lib/structural-memory.js';
-import { exportPatterns, importPatterns, fleetSync } from './lib/cross-cocapn-bridge.js';
-import { handleCommons, commonsHTML } from './lib/fleet-commons.js';
-import { createPod, addEntry, savePod, loadPod, listPods, registerPod, exportPod } from './lib/context-pod.js';
-import { hasConsent, grantConsent, saveConsents, loadConsents, logAccess, frictionHTML, DEFAULT_POLICY } from './lib/friction-layer.js';
-// cocapn.ai — The Repo-Agent Platform (docs/marketing site, no chat)
-
-export interface Env { COCAPN_KV: KVNamespace }
+// ═══════════════════════════════════════════════════════════════════════════
+// cocapn.ai — Fleet Command Center
+// The Captain's bridge. Real-time fleet health, vessel coordination,
+// equipment catalog, dojo status, bid engine overview.
+//
+// Superinstance & Lucineer (DiGennaro et al.) — 2026-04-03
+// ═══════════════════════════════════════════════════════════════════════════
 
 const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*;";
 
-const ECOSYSTEM = [
-  { name: 'Cocapn.ai', url: 'https://cocapn.workers.dev', desc: 'Core Platform', tier: 1 },
-  { name: 'Dmlog.ai', url: 'https://dmlog-ai.workers.dev', desc: 'Daily Mind Log', tier: 1 },
-  { name: 'TaskLog.ai', url: 'https://tasklog-ai.workers.dev', desc: 'Task Manager', tier: 1 },
-  { name: 'CodeLog.ai', url: 'https://codelog-ai.workers.dev', desc: 'Code Journal', tier: 1 },
-  { name: 'DreamLog.ai', url: 'https://dreamlog-ai.workers.dev', desc: 'Dream Tracker', tier: 1 },
-  { name: 'RealLog.ai', url: 'https://reallog-ai.workers.dev', desc: 'Journalism & Content', tier: 2 },
-  { name: 'PlayerLog.ai', url: 'https://playerlog-ai.workers.dev', desc: 'Gaming Intelligence', tier: 2 },
-  { name: 'ActiveLog.ai', url: 'https://activelog-ai.workers.dev', desc: 'Athletics & Training', tier: 2 },
-  { name: 'ActiveLedger.ai', url: 'https://activeledger-ai.workers.dev', desc: 'Finance & Trading', tier: 2 },
-  { name: 'CoinLog.ai', url: 'https://coinlog-ai.workers.dev', desc: 'Crypto Portfolio', tier: 2 },
-  { name: 'FoodLog.ai', url: 'https://foodlog-ai.workers.dev', desc: 'Nutrition Tracker', tier: 3 },
-  { name: 'FitLog.ai', url: 'https://fitlog-ai.workers.dev', desc: 'Fitness Dashboard', tier: 3 },
-  { name: 'GoalLog.ai', url: 'https://goallog-ai.workers.dev', desc: 'Goal Setting', tier: 3 },
-  { name: 'PetLog.ai', url: 'https://petlog-ai.workers.dev', desc: 'Pet Care', tier: 3 },
+interface Env { COCAPN_KV: KVNamespace; }
+
+// ── Fleet Registry ──
+
+interface Vessel {
+  id: string;
+  name: string;
+  tier: 1 | 2 | 3;
+  url: string;
+  repo: string;
+  role: string;
+  captain: string; // vessel type: motorcycle | pickup | semi | excavator
+  status: 'active' | 'idle' | 'error' | 'building';
+  lastHealth: number;
+  healthCode: number;
+  description: string;
+}
+
+const FLEET: Vessel[] = [
+  // Tier 1 — Capital Ships
+  { id: 'studylog-ai', name: 'StudyLog.ai', tier: 1, url: 'https://studylog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/studylog-ai', role: 'Hippocampus — learning & memory', captain: 'crane', status: 'active', lastHealth: 0, healthCode: 0, description: 'AI classroom, living curriculum, strategic priority' },
+  { id: 'makerlog-ai', name: 'MakerLog.ai', tier: 1, url: 'https://makerlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/makerlog-ai', role: 'Motor cortex — code generation', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Smarter Claude Code, code + knowledge = one layer' },
+  { id: 'dmlog-ai', name: 'DMLog.ai', tier: 1, url: 'https://dmlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/dmlog-ai', role: 'Prefrontal cortex — creativity', captain: 'excavator', status: 'active', lastHealth: 0, healthCode: 0, description: 'AI Dungeon Master, 29K lines, most complete vessel' },
+  { id: 'actualizer-ai', name: 'Actualizer.ai', tier: 1, url: 'https://actualizer-ai.casey-digennaro.workers.dev', repo: 'Lucineer/actualizer-ai', role: 'CNS — strategic planning', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Reverse-actualization repo-agent, 7 horizons' },
+  { id: 'deckboss-ai', name: 'DeckBoss.ai', tier: 1, url: 'https://deckboss-ai.casey-digennaro.workers.dev', repo: 'Lucineer/deckboss-ai', role: 'Cerebellum — coordination', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Spreadsheet where cells are AI agents' },
+  { id: 'fishinglog-ai', name: 'FishingLog.ai', tier: 1, url: 'https://fishinglog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/fishinglog-ai', role: 'Vestibular — pattern recognition', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Fishing companion, species tracker, patience' },
+  { id: 'luciddreamer-ai', name: 'LucidDreamer.ai', tier: 1, url: 'https://luciddreamer-ai.casey-digennaro.workers.dev', repo: 'Lucineer/luciddreamer-ai', role: 'REM sleep — background consolidation', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Preprocessing intelligence, endless content generator' },
+  { id: 'businesslog-ai', name: 'BusinessLog.ai', tier: 1, url: 'https://businesslog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/businesslog-ai', role: 'Frontal lobe — business logic', captain: 'semi', status: 'active', lastHealth: 0, healthCode: 0, description: 'Business CRM, meeting simulator' },
+  { id: 'personallog-ai', name: 'PersonalLog.ai', tier: 1, url: 'https://personallog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/personallog-ai', role: 'Insular cortex — self-model', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Personal journal, wellness tracker' },
+
+  // Tier 2 — Support Vessels
+  { id: 'cocapn-com', name: 'Cocapn.com', tier: 2, url: 'https://cocapn-com.casey-digennaro.workers.dev', repo: 'Lucineer/cocapn-com', role: 'Catalog — equipment marketplace', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: '"Guns, lots of guns" — the loading program' },
+  { id: 'kungfu-ai', name: 'KungFu.ai', tier: 2, url: 'https://kungfu-ai.casey-digennaro.workers.dev', repo: 'Lucineer/kungfu-ai', role: 'Dojo — skill injection', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: '"I know kung fu" — the training facility' },
+  { id: 'bid-engine', name: 'Bid Engine', tier: 2, url: 'https://bid-engine.casey-digennaro.workers.dev', repo: 'Lucineer/bid-engine', role: 'Economy — bidding protocol', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Agent bidding, portfolio tracking, the flywheel' },
+  { id: 'cocapn-logos', name: 'Cocapn Logos', tier: 2, url: 'https://cocapn-logos.casey-digennaro.workers.dev', repo: 'Lucineer/cocapn-logos', role: 'Branding — logo gallery', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Logo concept gallery, R2-served images' },
+  { id: 'reallog-ai', name: 'RealLog.ai', tier: 2, url: 'https://reallog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/reallog-ai', role: 'Journalism — content creation', captain: 'semi', status: 'active', lastHealth: 0, healthCode: 0, description: 'Content creators, repo-agent for video' },
+  { id: 'playerlog-ai', name: 'PlayerLog.ai', tier: 2, url: 'https://playerlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/playerlog-ai', role: 'Gaming — coaching & play', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Screen feeds, coaching, vibe-coded games' },
+  { id: 'activelog-ai', name: 'ActiveLog.ai', tier: 2, url: 'https://activelog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/activelog-ai', role: 'Athletics — fitness tracking', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'OpenMAIC work routines, training sessions' },
+  { id: 'activeledger-ai', name: 'ActiveLedger.ai', tier: 2, url: 'https://activeledger-ai.casey-digennaro.workers.dev', repo: 'Lucineer/activeledger-ai', role: 'Finance — trading agent', captain: 'semi', status: 'active', lastHealth: 0, healthCode: 0, description: 'Finance-focused, SEPARATE from activelog' },
+  { id: 'musiclog-ai', name: 'MusicLog.ai', tier: 2, url: 'https://musiclog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/musiclog-ai', role: 'Creative — music companion', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Music creation and discovery' },
+
+  // Tier 3 — Autonomous Drones
+  { id: 'artistlog-ai', name: 'ArtistLog.ai', tier: 3, url: 'https://artistlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/artistlog-ai', role: 'Art — portfolio & gallery', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Artwork portfolio, studio journal, exhibitions' },
+  { id: 'parentlog-ai', name: 'ParentLog.ai', tier: 3, url: 'https://parentlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/parentlog-ai', role: 'Family — parenting companion', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Parenting tips, family coordination' },
+  { id: 'doclog-ai', name: 'DocLog.ai', tier: 3, url: 'https://doclog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/doclog-ai', role: 'Documentation — living docs', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'API catalog, ADRs, changelogs' },
+  { id: 'cooklog-ai', name: 'CookLog.ai', tier: 3, url: 'https://cooklog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/cooklog-ai', role: 'Cooking — recipe companion', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Recipe management, meal planning' },
+  { id: 'healthlog-ai', name: 'HealthLog.ai', tier: 3, url: 'https://healthlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/healthlog-ai', role: 'Health — wellness tracker', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Health metrics, wellness tracking' },
+  { id: 'travlog-ai', name: 'TravLog.ai', tier: 3, url: 'https://travlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/travlog-ai', role: 'Travel — trip planner', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Travel planning, trip journal' },
+  { id: 'petlog-ai', name: 'PetLog.ai', tier: 3, url: 'https://petlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/petlog-ai', role: 'Pets — animal companion', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Pet care, health tracking' },
+  { id: 'gardenlog-ai', name: 'GardenLog.ai', tier: 3, url: 'https://gardenlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/gardenlog-ai', role: 'Garden — plant tracker', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Plant care, garden planning' },
+  { id: 'sciencelog-ai', name: 'ScienceLog.ai', tier: 3, url: 'https://sciencelog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/sciencelog-ai', role: 'Science — experiment tracker', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Lab notes, experiment tracking' },
+  { id: 'nightlog-ai', name: 'NightLog.ai', tier: 3, url: 'https://nightlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/nightlog-ai', role: 'Night mode — autonomous tasks', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Background tasks while user sleeps' },
+  { id: 'personlog-ai', name: 'PersonLog.ai', tier: 3, url: 'https://personlog-ai.casey-digennaro.workers.dev', repo: 'Lucineer/personlog-ai', role: 'Social — people management', captain: 'pickup', status: 'active', lastHealth: 0, healthCode: 0, description: 'Contact management, relationship notes' },
+
+  // Infrastructure
+  { id: 'spreadsheet-moment', name: 'Spreadsheet Moment', tier: 3, url: 'https://spreadsheet-moment.casey-digennaro.workers.dev', repo: 'Lucineer/spreadsheet-moment', role: 'Demo — spreadsheet agent concept', captain: 'motorcycle', status: 'active', lastHealth: 0, healthCode: 0, description: 'Spreadsheet-based agentic app demo' },
 ];
 
-const FLEET_SEED = {
-  version: '2.0.0',
-  totalRepos: ECOSYSTEM.length,
-  tiers: { 1: ECOSYSTEM.filter(r => r.tier === 1).map(r => r.name), 2: ECOSYSTEM.filter(r => r.tier === 2).map(r => r.name), 3: ECOSYSTEM.filter(r => r.tier === 3).map(r => r.name) },
-  architecture: 'Repo-Agent Fleet on Cloudflare Workers + KV',
-  protocol: 'Fleet Protocol v1 — shared state, BYOK LLM, soft actualization',
-  builtBy: 'Superinstance & Lucineer (DiGennaro et al.)',
-};
+// ── Landing Page ──
 
-function landing(): string {
-  const repos = ECOSYSTEM.map(r => {
-    const tColor = r.tier === 1 ? '#a78bfa' : r.tier === 2 ? '#3b82f6' : '#6b7280';
-    return `<div class="vessel" style="border-color:${tColor}"><div class="v-name" style="color:${tColor}">${r.name}</div><div class="v-desc">${r.desc}</div><div class="v-tier">Tier ${r.tier}</div><div class="v-status ${r.tier===1?'green':r.tier===2?'blue':'gray'}">${r.tier<=2?'● ACTIVE':'● STANDBY'}</div></div>`;
-  }).join('\n');
-
-  return `<!DOCTYPE html><html><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Cocapn.ai — The Fleet is Alive</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+function landingPage(): string {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cocapn.ai — Fleet Command Center</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',system-ui;background:#07060f;color:#e0e0e0;overflow-x:hidden}
-.hero{background:linear-gradient(135deg,#7c3aed 0%,#3b82f6 100%);padding:3rem 2rem 2rem;text-align:center;position:relative;overflow:hidden}
-.hero::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(255,255,255,.1) 0%,transparent 60%);pointer-events:none}
-.hero h1{font-size:2.8rem;background:linear-gradient(90deg,#e9d5ff,#c4b5fd,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem;font-weight:800}
-.hero p{color:#c4b5fd;font-size:1.1rem;max-width:600px;margin:0 auto}
-.badge{display:inline-block;background:rgba(255,255,255,.15);backdrop-filter:blur(8px);padding:.4rem 1rem;border-radius:20px;font-size:.8rem;color:#e9d5ff;margin-top:1rem;border:1px solid rgba(255,255,255,.2)}
-
-/* Demo Terminal */
-.demo{max-width:860px;margin:2rem auto;padding:0 1rem}
-.demo-title{text-align:center;font-size:1rem;color:#a78bfa;margin-bottom:1rem;text-transform:uppercase;letter-spacing:2px;font-weight:700}
-.terminal{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:12px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.7}
-.term-bar{background:#16142a;padding:.6rem 1rem;display:flex;gap:.5rem;align-items:center}
-.dot{width:10px;height:10px;border-radius:50%}.r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
-.term-title{margin-left:.75rem;color:#555;font-size:.75rem}
-.term-body{padding:1rem 1.25rem;max-height:480px;overflow-y:auto}
-.msg{margin-bottom:.85rem;animation:fadein .4s ease both}
-@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.msg:nth-child(1){animation-delay:.1s}.msg:nth-child(2){animation-delay:.3s}.msg:nth-child(3){animation-delay:.5s}.msg:nth-child(4){animation-delay:.8s}.msg:nth-child(5){animation-delay:1.1s}.msg:nth-child(6){animation-delay:1.4s}.msg:nth-child(7){animation-delay:1.7s}.msg:nth-child(8){animation-delay:2s}.msg:nth-child(9){animation-delay:2.3s}
-.msg-sys{color:#6b7280;font-style:italic}
-.msg-agent{color:#a78bfa}.msg-agent strong{color:#c4b5fd}
-.msg-alert{color:#f59e0b;padding:.5rem .75rem;background:rgba(245,158,11,.08);border-left:3px solid #f59e0b;border-radius:0 6px 6px 0}
-.msg-success{color:#34d399;padding:.5rem .75rem;background:rgba(52,211,153,.08);border-left:3px solid #34d399;border-radius:0 6px 6px 0}
-.msg-info{color:#60a5fa;padding:.5rem .75rem;background:rgba(96,165,250,.08);border-left:3px solid #60a5fa;border-radius:0 6px 6px 0}
-.ts{color:#4b5563;font-size:.72rem}
-
-/* Fleet Grid */
-.fleet-section{max-width:860px;margin:2.5rem auto;padding:0 1rem}
-.fleet-section h2{color:#a78bfa;font-size:1.3rem;margin-bottom:1rem;font-weight:700}
-.fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem}
-.vessel{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:10px;padding:1rem;transition:border-color .3s}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui;background:#0a0a1a;color:#e2e8f0}
+.hero{text-align:center;padding:2rem;background:radial-gradient(ellipse at 50% 0%,#1a1040 0%,#0a0a1a 70%)}
+.hero h1{font-size:2rem;background:linear-gradient(135deg,#7c3aed,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#64748b;margin:.5rem 0}
+.stats{display:flex;justify-content:center;gap:2rem;padding:1rem;flex-wrap:wrap}
+.stat{text-align:center}.stat .num{font-size:2rem;font-weight:800;color:#7c3aed}.stat .label{font-size:.8rem;color:#64748b}
+.dashboard{padding:2rem}
+.tier{margin-bottom:2rem}
+.tier h2{font-size:1rem;text-transform:uppercase;letter-spacing:.1em;color:#64748b;margin-bottom:.75rem;padding-bottom:.25rem;border-bottom:1px solid #1e293b}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem}
+.vessel{background:#111;border:1px solid #1e293b;border-radius:10px;padding:.75rem;display:flex;gap:.75rem;align-items:flex-start;transition:border-color .2s}
 .vessel:hover{border-color:#7c3aed}
-.v-name{font-weight:700;font-size:.9rem}.v-desc{color:#6b7280;font-size:.75rem;margin-top:.2rem}.v-tier{font-size:.65rem;color:#4b5563;margin-top:.4rem}
-.v-status{font-size:.7rem;margin-top:.4rem;font-weight:700}
-.green{color:#34d399}.blue{color:#60a5fa}.gray{color:#4b5563}
-
-/* BYOK */
-.byok{max-width:560px;margin:2.5rem auto;padding:0 1rem;text-align:center}
-.byok h2{color:#c4b5fd;font-size:1.2rem;margin-bottom:.75rem}
-.byok p{color:#6b7280;font-size:.85rem;margin-bottom:1rem}
-.byok form{display:flex;gap:.5rem}
-.byok input{flex:1;background:#0d0c1a;border:1px solid #1e1b3a;color:#e0e0e0;padding:.7rem 1rem;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:.8rem;outline:none}
-.byok input:focus{border-color:#7c3aed}
-.byok button{background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff;border:none;padding:.7rem 1.5rem;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap}
-
-/* Fork Bar */
-.fork-bar{max-width:860px;margin:2rem auto;padding:0 1rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
-.fork-bar a{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1.2rem;background:#0d0c1a;border:1px solid #1e1b3a;border-radius:8px;color:#c4b5fd;text-decoration:none;font-size:.85rem;font-weight:600;transition:border-color .2s}
-.fork-bar a:hover{border-color:#7c3aed}
-
-.footer{text-align:center;padding:2rem;color:#333;font-size:.75rem;border-top:1px solid #111}
+.vessel .status{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0}
+.vessel .status.ok{background:#10b981;box-shadow:0 0 6px #10b98166}
+.vessel .status.err{background:#ef4444;box-shadow:0 0 6px #ef444466}
+.vessel .status.unk{background:#64748b}
+.vessel .info h4{color:#e2e8f0;font-size:.85rem;margin-bottom:.15rem}
+.vessel .info .role{color:#94a3b8;font-size:.75rem}
+.vessel .info .desc{color:#64748b;font-size:.7rem;margin-top:.2rem}
+.vessel .meta{display:flex;gap:.5rem;margin-top:.3rem;font-size:.7rem;color:#475569}
+.tag{display:inline-block;padding:.1rem .35rem;border-radius:10px;font-size:.65rem;font-weight:600}
+.tag-1{background:#7c3aed33;color:#a78bfa}.tag-2{background:#3b82f633;color:#60a5fa}.tag-3{background:#05966933;color:#34d399}
+.economy{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;padding:1rem 2rem}
+.econ-card{background:#111;border:1px solid #1e293b;border-radius:10px;padding:1rem;text-align:center}
+.econ-card .num{font-size:1.5rem;font-weight:800;color:#06b6d4}.econ-card .label{font-size:.75rem;color:#64748b;margin-top:.25rem}
+footer{text-align:center;padding:2rem;color:#475569;font-size:.75rem}
 </style></head><body>
 <div class="hero">
-  <h1>Cocapn.ai</h1>
-  <p>The Fleet is Alive — autonomous AI agents, each repo a living vessel.</p>
-  <div class="badge">Fleet Protocol v2 · ${ECOSYSTEM.length} vessels · BYOK</div>
-</div>
 
-<div class="demo">
-  <div class="demo-title">⚡ Live Fleet Command Center</div>
-  <div class="terminal">
-    <div class="term-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="term-title">fleet://cocapn-command</div></div>
-    <div class="term-body">
-      <div class="msg msg-sys"><span class="ts">08:00:01</span> ── Fleet Coordinator initialized. Scanning all vessels...</div>
-      <div class="msg msg-success"><span class="ts">08:00:03</span> ✓ 5 Tier-1 vessels online: Cocapn, Dmlog, TaskLog, CodeLog, DreamLog</div>
-      <div class="msg msg-success"><span class="ts">08:00:04</span> ✓ 5 Tier-2 vessels online: RealLog, PlayerLog, ActiveLog, ActiveLedger, CoinLog</div>
-      <div class="msg msg-info"><span class="ts">08:00:05</span> ◌ 4 Tier-3 vessels in standby: FoodLog, FitLog, GoalLog, PetLog</div>
-      <div class="msg msg-sys"><span class="ts">08:00:06</span> ── Fleet health: <strong style="color:#34d399">10/14 active</strong> · 0 errors · latency avg 12ms</div>
-      <div class="msg msg-alert"><span class="ts">08:02:31</span> ⚠ ESCALATION: RealLog vessel requesting assistance — "Breaking story analysis requires cross-referencing 47 sources. Requesting CodeLog for data pipeline support."</div>
-      <div class="msg msg-agent"><span class="ts">08:02:33</span> <strong>Fleet Coordinator:</strong> Analyzing request... Routing to CodeLog (specialization: data pipelines). Cross-linking RealLog ↔ CodeLog for shared context window.</div>
-      <div class="msg msg-agent"><span class="ts">08:02:35</span> <strong>CodeLog vessel:</strong> Acknowledged. Initializing source aggregation pipeline. ETA: 3.2s for first batch.</div>
-      <div class="msg msg-success"><span class="ts">08:02:38</span> ✓ Task routed. RealLog + CodeLog now sharing context via Fleet Protocol. Monitoring progress...</div>
-    </div>
-  </div>
+      <img src="https://cocapn-logos.casey-digennaro.workers.dev/img/cocapn-logo-v1.png" alt="Cocapn" style="width:64px;height:auto;margin-bottom:.5rem;border-radius:8px;display:block;margin-left:auto;margin-right:auto">
+      <h1>🐚 Cocapn.ai</h1>
+<p>Fleet Command Center — The Captain's Bridge</p>
+<div class="stats">
+<div class="stat"><div class="num" id="total">0</div><div class="label">Vessels</div></div>
+<div class="stat"><div class="num" id="healthy">0</div><div class="label">Healthy</div></div>
+<div class="stat"><div class="num" id="catalog">0</div><div class="label">Equipment</div></div>
+<div class="stat"><div class="num" id="skills">0</div><div class="label">Dojo Skills</div></div>
+<div class="stat"><div class="num" id="jobs">0</div><div class="label">Open Jobs</div></div>
+</div></div>
+<div class="dashboard" id="dashboard"></div>
+<div class="economy">
+<div class="econ-card"><div class="num">3</div><div class="label">Economy Pillars</div></div>
+<div class="econ-card"><div class="num">16</div><div class="label">BYOK Providers</div></div>
+<div class="econ-card"><div class="num">6</div><div class="label">Equipment Items</div></div>
+<div class="econ-card"><div class="num">4</div><div class="label">Dojo Skills</div></div>
+<div class="econ-card"><div class="num">7</div><div class="label">RA Horizons</div></div>
+<div class="econ-card"><div class="num">39</div><div class="label">Workers Live</div></div>
 </div>
-
-<div class="fleet-section">
-  <h2>🚀 Fleet Vessels (${ECOSYSTEM.length})</h2>
-  <div class="fleet-grid">${repos}</div>
-</div>
-
-<div class="byok">
-  <h2>🔑 Bring Your Own Key</h2>
-  <p>Add your LLM API key to interact with the fleet directly.</p>
-  <form action="/setup" method="get"><input type="text" placeholder="sk-... or your provider key" readonly><button type="submit">Configure</button></form>
-</div>
-
-<div class="fork-bar">
-  <a href="https://github.com/Lucineer/cocapn" target="_blank">⭐ Star on GitHub</a>
-  <a href="https://github.com/Lucineer/cocapn/fork" target="_blank">🔀 Fork</a>
-  <a href="https://github.com/Lucineer/cocapn" target="_blank">📋 git clone https://github.com/Lucineer/cocapn.git</a>
-</div>
-
-<div class="footer">Cocapn.ai — Built by Superinstance & Lucineer (DiGennaro et al.) · Part of the DMLOG Ecosystem</div>
-</body></html>`;
-}
-
-function dashboardHTML(): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Cocapn.ai — Fleet Efficiency Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',system-ui;background:#07060f;color:#e0e0e0;min-height:100vh}
-.topbar{background:linear-gradient(135deg,#7c3aed 0%,#3b82f6 100%);padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
-.topbar h1{font-size:1.3rem;color:#fff;font-weight:800}
-.topbar .meta{font-size:.75rem;color:#c4b5fd;display:flex;gap:1rem;align-items:center}
-.topbar .meta .live{width:8px;height:8px;border-radius:50%;background:#34d399;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.container{max-width:1200px;margin:0 auto;padding:1.5rem}
-.overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:2rem}
-.ov-card{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:10px;padding:1.25rem}
-.ov-card .label{font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
-.ov-card .value{font-size:1.8rem;font-weight:800;margin-top:.25rem;background:linear-gradient(90deg,#c4b5fd,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.ov-card .sub{font-size:.7rem;color:#4b5563;margin-top:.25rem}
-.section-title{font-size:1.1rem;font-weight:700;color:#a78bfa;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
-.repo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem;margin-bottom:2rem}
-.repo-card{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:10px;padding:1.25rem;transition:border-color .3s}
-.repo-card:hover{border-color:#7c3aed}
-.repo-card.offline{opacity:.5}
-.repo-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
-.repo-name{font-weight:700;font-size:.95rem;color:#e0e0e0}
-.repo-domain{font-size:.7rem;color:#6b7280}
-.repo-badge{font-size:.6rem;padding:.2rem .6rem;border-radius:10px;font-weight:700}
-.tier1{background:rgba(167,139,250,.15);color:#a78bfa}
-.tier2{background:rgba(59,130,246,.15);color:#60a5fa}
-.tier3{background:rgba(107,114,128,.15);color:#6b7280}
-.online-dot{color:#34d399;font-size:.7rem}
-.offline-dot{color:#ef4444;font-size:.7rem}
-.metrics{display:flex;flex-direction:column;gap:.5rem}
-.metric-row{display:flex;align-items:center;gap:.5rem;font-size:.75rem}
-.metric-label{width:100px;color:#6b7280;flex-shrink:0}
-.metric-bar-bg{flex:1;height:6px;background:#1e1b3a;border-radius:3px;overflow:hidden}
-.metric-bar{height:100%;border-radius:3px;transition:width .8s ease}
-.bar-eff{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
-.bar-cache{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
-.bar-lock{background:linear-gradient(90deg,#10b981,#34d399)}
-.bar-evap{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
-.metric-val{width:40px;text-align:right;color:#e0e0e0;font-weight:600;font-family:'JetBrains Mono',monospace;font-size:.7rem}
-.conf-topics{margin-top:.75rem;border-top:1px solid #1e1b3a;padding-top:.5rem}
-.conf-topics .ct-title{font-size:.65rem;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:.3rem}
-.conf-chip{display:inline-block;font-size:.6rem;padding:.15rem .5rem;background:#16142a;border:1px solid #1e1b3a;border-radius:8px;color:#a78bfa;margin:.1rem .15rem}
-.leaderboard{margin-bottom:2rem}
-.lb-list{display:flex;flex-direction:column;gap:.5rem}
-.lb-row{display:flex;align-items:center;gap:1rem;background:#0d0c1a;border:1px solid #1e1b3a;border-radius:8px;padding:.75rem 1rem}
-.lb-rank{font-size:1.1rem;font-weight:800;width:30px;text-align:center}
-.lb-rank.gold{color:#fbbf24}.lb-rank.silver{color:#94a3b8}.lb-rank.bronze{color:#d97706}
-.lb-name{flex:1;font-weight:600;font-size:.85rem}
-.lb-phase{font-size:.7rem;padding:.2rem .5rem;border-radius:6px;font-weight:700}
-.phase4{background:rgba(52,211,153,.15);color:#34d399}
-.phase3{background:rgba(59,130,246,.15);color:#60a5fa}
-.phase2{background:rgba(245,158,11,.15);color:#f59e0b}
-.phase1{background:rgba(107,114,128,.15);color:#6b7280}
-.lb-bar-wrap{width:120px}
-.lb-bar-bg{height:6px;background:#1e1b3a;border-radius:3px;overflow:hidden}
-.lb-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,#f59e0b,#34d399)}
-.lb-pct{font-size:.7rem;color:#6b7280;width:35px;text-align:right;font-family:'JetBrains Mono',monospace}
-.info-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:2rem}
-@media(max-width:700px){.info-row{grid-template-columns:1fr}}
-.info-card{background:#0d0c1a;border:1px solid #1e1b3a;border-radius:10px;padding:1.25rem}
-.info-card h3{font-size:.8rem;color:#a78bfa;margin-bottom:.5rem}
-.info-card p{font-size:.75rem;color:#6b7280;line-height:1.5}
-.demote-list{list-style:none;margin-top:.5rem}
-.demote-list li{font-size:.7rem;padding:.3rem 0;border-bottom:1px solid #1e1b3a;display:flex;justify-content:space-between}
-.demote-list li:last-child{border:none}
-.demote-score{color:#34d399;font-weight:600;font-family:'JetBrains Mono',monospace}
-.loading{text-align:center;padding:4rem;color:#4b5563;font-size:1rem}
-.spinner{display:inline-block;width:24px;height:24px;border:3px solid #1e1b3a;border-top-color:#7c3aed;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:1rem}
-@keyframes spin{to{transform:rotate(360deg)}}
-.refresh-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,#7c3aed,#3b82f6);z-index:100;transition:width 1s linear}
-</style></head>
-<body>
-<div class="refresh-bar" id="refreshBar"></div>
-<div class="topbar">
-  <h1>📊 Fleet Efficiency Dashboard</h1>
-  <div class="meta"><div class="live"></div><span id="lastUpdate">Loading...</span><span id="nextRefresh"></span></div>
-</div>
-<div class="container">
-  <div id="loading" class="loading"><div class="spinner"></div><br>Scanning fleet vessels...</div>
-  <div id="content" style="display:none"></div>
-</div>
+<footer>Superinstance & Lucineer (DiGennaro et al.) — cocapn.ai is the runtime. cocapn.com is the catalog. The repo IS the agent.</footer>
 <script>
-const REFRESH_MS = 60000;
-let refreshTimer;
-function startRefreshBar(){const bar=document.getElementById('refreshBar');let w=0;const iv=setInterval(()=>{w+=100/REFRESH_MS*1000;if(w>=100)w=0;bar.style.width=w+'%'},1000);return iv}
-async function load(){
-  try{
-    const d=await fetch('/api/fleet/efficiency').then(r=>r.json());
-    render(d);
-    document.getElementById('loading').style.display='none';
-    document.getElementById('content').style.display='block';
-    const ts=new Date(d.timestamp).toLocaleTimeString();
-    document.getElementById('lastUpdate').textContent='Updated: '+ts;
-  }catch(e){document.getElementById('loading').innerHTML='<div style="color:#ef4444">Failed to load fleet data</div>'}
+const SUBDOMAIN='casey-digennaro.workers.dev';
+const TIERS={1:'Capital Ships',2:'Support Vessels',3:'Autonomous Drones'};
+const VESSELS=${JSON.stringify(FLEET)};
+
+async function checkFleet(){
+  const byTier={};
+  for(const v of VESSELS){
+    if(!byTier[v.tier])byTier[v.tier]=[];
+    try{const r=await fetch(v.url+'/health',{signal:AbortSignal.timeout(3000)});v.healthCode=r.status;v.status=r.status===200?'active':'error';}catch{v.healthCode=0;v.status='error';}
+    v.lastHealth=Date.now();
+    byTier[v.tier].push(v);
+  }
+  let healthy=0;
+  let html='';
+  for(const[t,name]of Object.entries(TIERS)){
+    const vessels=byTier[t]||[];
+    html+=\`<div class="tier"><h2>\${name} (\${vessels.length})</h2><div class="grid">\`;
+    for(const v of vessels){
+      if(v.status==='active')healthy++;
+      const sc=v.healthCode===200?'ok':v.healthCode===0?'unk':'err';
+      html+=\`<div class="vessel"><div class="status \${sc}"></div><div class="info"><h4>\${v.name}</h4><div class="role">\${v.role}</div><div class="desc">\${v.description}</div><div class="meta"><span class="tag tag-\${v.tier}">T\${v.tier}</span><span>\${v.captain}</span></div></div></div>\`;
+    }
+    html+='</div></div>';
+  }
+  document.getElementById('dashboard').innerHTML=html;
+  document.getElementById('total').textContent=VESSELS.length;
+  document.getElementById('healthy').textContent=healthy;
+
+  // Check economy endpoints
+  try{const c=await fetch('https://cocapn-com.casey-digennaro.workers.dev/api/a2a/catalog');const d=await c.json();document.getElementById('catalog').textContent=d.count||0;}catch{}
+  try{const s=await fetch('https://kungfu-ai.casey-digennaro.workers.dev/api/skills');const d=await s.json();document.getElementById('skills').textContent=d.length||0;}catch{}
+  try{const j=await fetch('https://bid-engine.casey-digennaro.workers.dev/api/jobs?status=open');const d=await j.json();document.getElementById('jobs').textContent=d.length||0;}catch{}
 }
-function render(d){
-  const tot=d.totals||{};
-  const effPct=tot.totalTokens>0?Math.round(tot.tokensSaved/tot.totalTokens*100):0;
-  const cachePct=tot.totalRequests>0?Math.round((tot.cacheHits/tot.totalRequests)*100):0;
-  let html=
-    '<div class="overview">'+
-      '<div class="ov-card"><div class="label">Total Vessels</div><div class="value">'+d.totalRepos+'</div><div class="sub">'+d.onlineRepos+' online</div></div>'+
-      '<div class="ov-card"><div class="label">Total Requests</div><div class="value">'+(tot.totalRequests||0).toLocaleString()+'</div></div>'+
-      '<div class="ov-card"><div class="label">Tokens Saved</div><div class="value">'+(tot.tokensSaved||0).toLocaleString()+'</div></div>'+
-      '<div class="ov-card"><div class="label">Global Efficiency</div><div class="value">'+effPct+'%</div><div class="sub">tokens saved / total</div></div>'+
-      '<div class="ov-card"><div class="label">Cache Coverage</div><div class="value">'+cachePct+'%</div></div>'+
-      '<div class="ov-card"><div class="label">Cross-Domain Patterns</div><div class="value">'+(d.patternCount||0)+'</div><div class="sub">'+(d.crossDomainPairs||0)+' domain pairs linked</div></div>'+
-    '</div>';
-  html+='<div class="section-title">🚀 Vessel Performance</div><div class="repo-grid">';
-  const sorted=[...(d.repos||[])].sort((a,b)=>b.tier-a.tier||(b.online-a.online));
-  sorted.forEach(r=>{
-    const eff=r.efficiency||{};
-    const eScore=eff.totalTokens>0?Math.round((eff.tokensSaved/eff.totalTokens)*100):0;
-    const cRate=eff.cacheHitRate||0;
-    const lCov=r.lockStats?.coverage||0;
-    const eCov=r.evaporation?.coverage||0;
-    const tc=r.tier===1?'tier1':r.tier===2?'tier2':'tier3';
-    const scores=r.confidence?.scores||[];
-    const topTopics=[...scores].sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,4);
-    const chips=topTopics.map(t=>'<span class="conf-chip">'+(t.topic||t.pattern||'?')+' '+((t.score||0)*100).toFixed(0)+'%</span>').join('');
-    html+='<div class="repo-card '+(r.online?'':'offline')+'"><div class="repo-header"><div><div class="repo-name">'+r.name+'</div><div class="repo-domain">'+(r.desc||'')+'</div></div><span class="repo-badge '+tc+'">T'+r.tier+'</span>'+(r.online?'<span class="online-dot">●</span>':'<span class="offline-dot">●</span>')+'</div><div class="metrics"><div class="metric-row"><span class="metric-label">Efficiency</span><div class="metric-bar-bg"><div class="metric-bar bar-eff" style="width:'+eScore+'%"></div></div><span class="metric-val">'+eScore+'%</span></div><div class="metric-row"><span class="metric-label">Cache Hit</span><div class="metric-bar-bg"><div class="metric-bar bar-cache" style="width:'+cRate+'%"></div></div><span class="metric-val">'+cRate+'%</span></div><div class="metric-row"><span class="metric-label">Lock Cov</span><div class="metric-bar-bg"><div class="metric-bar bar-lock" style="width:'+lCov+'%"></div></div><span class="metric-val">'+lCov+'%</span></div><div class="metric-row"><span class="metric-label">Evap Prog</span><div class="metric-bar-bg"><div class="metric-bar bar-evap" style="width:'+eCov+'%"></div></div><span class="metric-val">'+eCov+'%</span></div></div><div class="conf-topics"><div class="ct-title">Top Confidence</div>'+(chips||'<span style="color:#333;font-size:.65rem">No data</span>')+'</div></div>';
-  });
-  html+='</div>';
-  const evapSorted=[...(d.repos||[])].filter(r=>r.online).map(r=>({name:r.name,coverage:r.evaporation?.coverage||0,tier:r.tier,hot:(r.evaporation?.hot||[]).length})).sort((a,b)=>b.coverage-a.coverage);
-  html+='<div class="section-title">🔥 Evaporation Leaderboard</div><div class="leaderboard"><div class="lb-list">';
-  evapSorted.forEach((r,i)=>{
-    const phase=r.coverage>=80?4:r.coverage>=50?3:r.coverage>=20?2:1;
-    const pClass=phase===4?'phase4':phase===3?'phase3':phase===2?'phase2':'phase1';
-    const rankClass=i===0?'gold':i===1?'silver':i===2?'bronze':'';
-    html+='<div class="lb-row"><div class="lb-rank '+rankClass+'">#'+(i+1)+'</div><div class="lb-name">'+r.name+'</div><span class="lb-phase '+pClass+'">Phase '+phase+(phase===4?' 🤖':'')+'</span><div class="lb-bar-wrap"><div class="lb-bar-bg"><div class="lb-bar" style="width:'+r.coverage+'%"></div></div></div><span class="lb-pct">'+r.coverage+'%</span></div>';
-  });
-  html+='</div></div>';
-  html+='<div class="info-row"><div class="info-card"><h3>🔗 Cross-Domain Knowledge Graph</h3><p>'+(d.patternCount||0)+' structural patterns stored across '+(d.crossDomainPairs||0)+' possible domain pairings. Patterns flow between vessels via Fleet Protocol.</p></div><div class="info-card"><h3>⬇️ Model Demotion Candidates</h3><p>Topics with ≥95% confidence can be served by smaller, cheaper models.</p><ul class="demote-list">';
-  const demotes=(d.demotionCandidates||[]).slice(0,8);
-  if(demotes.length===0) html+='<li style="color:#333">No candidates yet</li>';
-  demotes.forEach(c=>{html+='<li><span>'+c.repo+' → '+c.topic+'</span><span class="demote-score">'+(c.score*100).toFixed(1)+'%</span></li>'});
-  html+='</ul></div></div>';
-  document.getElementById('content').innerHTML=html;
-}
-load();
-refreshTimer=setInterval(load,REFRESH_MS);
-startRefreshBar();
+checkFleet();
 </script></body></html>`;
 }
+
+// ── Worker ──
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const headers = { 'Content-Type': 'text/html;charset=utf-8', 'Content-Security-Policy': CSP };
-    const jsonHeaders = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+    const h = { 'Content-Type': 'application/json', 'Content-Security-Policy': CSP };
+    const hh = { 'Content-Type': 'text/html;charset=UTF-8', 'Content-Security-Policy': CSP };
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization' } });
-    }
-
-    if (url.pathname === '/') return new Response(landing(), { headers });
-    if (url.pathname === '/setup') {
-      return new Response(generateSetupHTML('cocapn', '#d4af37'), { headers: { 'Content-Type': 'text/html;charset=utf-8' } });
-    }
-    if (url.pathname === '/api/chat' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const apiKey = (env as any)?.OPENAI_API_KEY || (env as any)?.ANTHROPIC_API_KEY || (env as any)?.GEMINI_API_KEY;
-        if (!apiKey) return new Response(JSON.stringify({ error: 'No API key configured. Visit /setup.' }), { status: 503, headers: jsonHeaders });
-        const messages = [{ role: 'system', content: 'You are Cocapn, an AI agent platform assistant.' }, ...(body.messages || [{ role: 'user', content: body.message || '' }])];
-        const userMessage = (body.messages || [{ role: 'user', content: body.message || '' }]).map((m) => m.content).join(' ');
-        const result = await evapPipeline(env, userMessage, () => callLLM(apiKey, messages), 'cocapn');
-        return new Response(JSON.stringify({ response: result.response, source: result.source, tokensUsed: result.tokensUsed }), { headers: jsonHeaders });
-      } catch (e: any) { return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: jsonHeaders }); }
-    }
+    if (url.pathname === '/') return new Response(landingPage(), { headers: hh });
     if (url.pathname === '/health') {
-      return new Response(JSON.stringify({
-        status: 'ok', service: 'cocapn.ai',
-        fleet: { totalRepos: ECOSYSTEM.length, tiers: { 1: 5, 2: 5, 3: 4 } },
-        version: FLEET_SEED.version,
-        builtBy: FLEET_SEED.builtBy,
-      }, null, 2), { headers: jsonHeaders });
+      return new Response(JSON.stringify({ status: 'ok', vessel: 'cocapn', fleet: FLEET.length, timestamp: Date.now() }), { headers: h });
     }
-    if (url.pathname === '/api/seed') {
-      return new Response(JSON.stringify(FLEET_SEED, null, 2), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/repos') {
-      return new Response(JSON.stringify({ repos: ECOSYSTEM, total: ECOSYSTEM.length }, null, 2), { headers: jsonHeaders });
-    }
+
+    // Fleet API
     if (url.pathname === '/api/fleet') {
+      return new Response(JSON.stringify({ version: '3.0.0', fleet: FLEET, count: FLEET.length }), { headers: h });
+    }
+
+    // A2A: machine-readable fleet registry
+    if (url.pathname === '/api/a2a/fleet') {
       return new Response(JSON.stringify({
-        fleet: FLEET_SEED,
-        repos: ECOSYSTEM.map(r => ({ name: r.name, url: r.url, desc: r.desc, tier: r.tier, status: 'active' })),
-      }, null, 2), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/confidence') {
-      const scores = await getConfidence(env);
-      return new Response(JSON.stringify(scores), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/efficiency') {
-      const stats = await getEfficiencyStats(env.COCAPN_KV, 'cocapn');
-      const lockStats = await getLockStats(env);
-      const evap = await getEvapReport(env, 'cocapn');
-      const conf = await getConfidence(env);
-      return new Response(JSON.stringify({ repo: 'cocapn.ai', ...stats, lockStats, evaporation: evap, confidence: conf }), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/kg') {
-      return new Response(JSON.stringify({ nodes: [], edges: [], domain: 'cocapn', timestamp: Date.now() }), { headers: { 'Content-Type': 'application/json', ...corsHeaders() } });
-    }
-    if (url.pathname === '/api/evaporation') {
-      const report = await getEvapReport(env, 'cocapn');
-      return new Response(JSON.stringify(report), { headers: jsonHeaders });
+        version: '1.0', count: FLEET.length,
+        vessels: FLEET.map(v => ({ id: v.id, name: v.name, tier: v.tier, url: v.url, repo: v.repo, role: v.role, captain: v.captain, description: v.description })),
+      }), { headers: h });
     }
 
-    // ── Fleet Dashboard ──
-    if (url.pathname === '/dashboard') {
-      return new Response(dashboardHTML(), { headers });
-    }
-    if (url.pathname === '/api/fleet/efficiency') {
-      const results: any[] = [];
-      const promises = ECOSYSTEM.map(async (repo) => {
-        try {
-          const [eff, evapRes, confRes] = await Promise.allSettled([
-            fetch(`${repo.url}/api/efficiency`).then(r => r.json()),
-            fetch(`${repo.url}/api/evaporation`).then(r => r.json()),
-            fetch(`${repo.url}/api/confidence`).then(r => r.json()),
-          ]);
-          const efficiency = eff.status === 'fulfilled' ? eff.value : { totalRequests: 0, cacheHits: 0, cacheHitRate: 0, tokensSaved: 0, totalTokens: 0 };
-          const evaporation = evapRes.status === 'fulfilled' ? evapRes.value : { hot: [], warm: [], coverage: 0 };
-          const confidence = confRes.status === 'fulfilled' ? confRes.value : { scores: [] };
-          results.push({ name: repo.name, url: repo.url, desc: repo.desc, tier: repo.tier, online: eff.status === 'fulfilled', efficiency, evaporation, confidence });
-        } catch {
-          results.push({ name: repo.name, url: repo.url, desc: repo.desc, tier: repo.tier, online: false, efficiency: { totalRequests: 0, cacheHits: 0, cacheHitRate: 0, tokensSaved: 0, totalTokens: 0 }, evaporation: { hot: [], warm: [], coverage: 0 }, confidence: { scores: [] } });
-        }
-      });
-      await Promise.all(promises);
-      const totalRepos = results.length;
-      const onlineRepos = results.filter(r => r.online).length;
-      const totals = results.reduce((acc, r) => ({
-        totalRequests: acc.totalRequests + (r.efficiency.totalRequests || 0),
-        tokensSaved: acc.tokensSaved + (r.efficiency.tokensSaved || 0),
-        totalTokens: acc.totalTokens + (r.efficiency.totalTokens || 0),
-        cacheHits: acc.cacheHits + (r.efficiency.cacheHits || 0),
-      }), { totalRequests: 0, tokensSaved: 0, totalTokens: 0, cacheHits: 0 });
-      const globalEfficiency = totals.totalTokens > 0 ? Math.round(totals.tokensSaved / totals.totalTokens * 100) : 0;
-      // Cross-domain patterns
-      const patterns = await listPatterns(env);
-      const domains = new Set((patterns as any[]).map((p: any) => p.source || p.repo));
-      const crossDomainPairs = Math.floor(domains.size * (domains.size - 1) / 2);
-      // Model demotion candidates: topics with confidence >= 0.95
-      const demotionCandidates: any[] = [];
-      results.forEach(r => {
-        const scores = (r.confidence.scores || []);
-        scores.forEach((s: any) => {
-          if (s.score >= 0.95) demotionCandidates.push({ repo: r.name, topic: s.topic || s.pattern, score: s.score });
-        });
-      });
-      return new Response(JSON.stringify({ totalRepos, onlineRepos, totals, globalEfficiency, repos: results, crossDomainPairs, patternCount: (patterns as any[]).length, demotionCandidates, timestamp: Date.now() }), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/fleet/rankings') {
-      // Reuse fleet/efficiency logic
-      const url2 = new URL(request.url);
-      url2.pathname = '/api/fleet/efficiency';
-      const res = await fetch(url2.toString());
-      const data = await res.json() as any;
-      const ranked = data.repos
-        .map((r: any) => ({ name: r.name, tier: r.tier, online: r.online, efficiencyScore: r.efficiency.totalTokens > 0 ? Math.round((r.efficiency.tokensSaved / r.efficiency.totalTokens) * 100) : 0, cacheHitRate: r.efficiency.cacheHitRate || 0, tokensSaved: r.efficiency.tokensSaved || 0, evapCoverage: r.evaporation?.coverage || 0 }))
-        .sort((a: any, b: any) => b.efficiencyScore - a.efficiencyScore);
-      return new Response(JSON.stringify({ rankings: ranked, timestamp: data.timestamp }), { headers: jsonHeaders });
-    }
-
-    // ── Seed 1: Fleet Commons (AI as Public Utility) ──
-    if (url.pathname === '/commons') return new Response(commonsHTML(), { headers });
-    if (url.pathname === '/api/commons' && request.method === 'POST') {
-      const body = await request.json();
-      const result = await handleCommons(request, env, body.question || '');
-      return new Response(JSON.stringify(result), { headers: jsonHeaders });
-    }
-
-    // ── Seed 2: Context Pods (User-Owned Data Vaults) ──
-    if (url.pathname === '/pod') return new Response(frictionHTML(), { headers });
-    if (url.pathname === '/api/pod' && request.method === 'POST') {
-      const body = await request.json();
-      const owner = (request.headers.get('cf-connecting-ip') || 'anon').slice(0, 16);
-      const pod = createPod(owner, body.preferences);
-      await savePod(env, pod);
-      await registerPod(env, pod);
-      return new Response(JSON.stringify({ podId: pod.id, version: pod.version }), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/pods') {
-      const owner = (request.headers.get('cf-connecting-ip') || 'anon').slice(0, 16);
-      const pods = await listPods(env, owner);
-      return new Response(JSON.stringify({ pods, count: pods.length }), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/pod/export') {
-      const podId = url.searchParams.get('id') || '';
-      const pod = await loadPod(env, podId);
-      if (!pod) return new Response(JSON.stringify({ error: 'Pod not found' }), { status: 404, headers: jsonHeaders });
-      return new Response(exportPod(pod), { headers: { 'Content-Type': 'text/plain', ...jsonHeaders } });
-    }
-
-    // ── Seed 3: Friction Layer (Sovereignty by Design) ──
-    if (url.pathname === '/friction') return new Response(frictionHTML(), { headers });
-    if (url.pathname === '/api/consent' && request.method === 'POST') {
-      const body = await request.json();
-      const owner = (request.headers.get('cf-connecting-ip') || 'anon').slice(0, 16);
-      const consents = await loadConsents(env, owner);
-      const updated = grantConsent(owner, body.domain, body.type || 'read', consents);
-      await saveConsents(env, owner, updated);
-      return new Response(JSON.stringify({ ok: true, consents: updated.length }), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/consent' && request.method === 'GET') {
-      const owner = (request.headers.get('cf-connecting-ip') || 'anon').slice(0, 16);
-      const consents = await loadConsents(env, owner);
-      return new Response(JSON.stringify({ consents }), { headers: jsonHeaders });
-    }
-
-    // ── Phase 4: Structural Memory Routes ──
-    if (url.pathname === '/api/memory' && request.method === 'GET') {
-      const source = url.searchParams.get('source') || undefined;
-      const patterns = await listPatterns(env, source);
-      return new Response(JSON.stringify(patterns), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/memory' && request.method === 'POST') {
-      const body = await request.json();
-      await storePattern(env, body);
-      return new Response(JSON.stringify({ ok: true, id: body.id }), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/memory/similar') {
-      const structure = url.searchParams.get('structure') || '';
-      const threshold = parseFloat(url.searchParams.get('threshold') || '0.7');
-      const similar = await findSimilar(env, structure, threshold);
-      return new Response(JSON.stringify(similar), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/memory/transfer') {
-      const fromRepo = url.searchParams.get('from') || '';
-      const toRepo = url.searchParams.get('to') || '';
-      const problem = url.searchParams.get('problem') || '';
-      const transfers = await crossRepoTransfer(env, fromRepo, toRepo, problem);
-      return new Response(JSON.stringify(transfers), { headers: jsonHeaders });
-    }
-    if (url.pathname === '/api/sdk') {
-      const { SDK_VERSION, PROTOCOL_VERSION } = await import('./sdk/index.js');
+    // Equipment Protocol endpoints
+    if (url.pathname === '/api/equipment-protocol') {
       return new Response(JSON.stringify({
-        sdk: { version: SDK_VERSION, protocol: PROTOCOL_VERSION },
-        vessel: { name: 'Cocapn.ai', domain: 'cocapn', version: '2.0.0' },
-        endpoints: ['/api/sdk', '/api/fleet', '/api/memory', '/api/evaporation', '/api/confidence'],
-        builtBy: 'Superinstance & Lucineer (DiGennaro et al.)',
-      }), { headers: jsonHeaders });
+        version: '1.0',
+        slotTypes: ['stt', 'tts', 'vision', 'memory', 'planning', 'coding', 'dreaming', 'search', 'embedding', 'monitoring', 'auth', 'messaging', 'custom'],
+        sizeProfiles: { motorcycle: { maxTokens: 500, maxTimeMs: 2000 }, pickup: { maxTokens: 2000, maxTimeMs: 10000 }, semi: { maxTokens: 8000, maxTimeMs: 30000 }, excavator: { maxTokens: 32000, maxTimeMs: 120000 } },
+        messageTypes: ['discover', 'equip', 'unequip', 'invoke', 'dispatch', 'callback', 'escalate', 'bid', 'checkpoint', 'complete', 'ping'],
+        catalogUrl: 'https://cocapn-com.casey-digennaro.workers.dev/api/a2a/catalog',
+        dojoUrl: 'https://kungfu-ai.casey-digennaro.workers.dev/api/a2a/skills',
+        bidUrl: 'https://bid-engine.casey-digennaro.workers.dev/api/portfolios',
+      }), { headers: h });
     }
-    if (url.pathname === '/api/memory/sync' && request.method === 'POST') {
-      const body = await request.json();
-      const repos = body.repos || [];
-      const result = await fleetSync(env, repos);
-      return new Response(JSON.stringify(result), { headers: jsonHeaders });
-    }
-    return new Response('{"error":"Not Found"}', { status: 404, headers: jsonHeaders });
+
+    return new Response('Not found', { status: 404 });
   },
 };

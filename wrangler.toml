@@ -1,7 +1,8 @@
 name = "cocapn"
+account_id = "049ff5e84ecf636b53b162cbb580aae6"
 main = "src/worker.ts"
 compatibility_date = "2024-12-01"
 
 [[kv_namespaces]]
 binding = "COCAPN_KV"
-id = "9302b5a864e4406ba6afb07405fdf201"
+id = "a4f7bf1a6eee40ccabd4389c071046c4"
